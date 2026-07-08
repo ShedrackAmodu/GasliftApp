@@ -1,0 +1,148 @@
+{% extends "base/base.html" %}
+
+{% block title %}Adjust Weights - Gas Lift{% endblock %}
+
+{% block breadcrumb %}
+<nav aria-label="breadcrumb">
+    <ol class="breadcrumb breadcrumb-custom">
+        <li class="breadcrumb-item"><a href="{% url 'dashboard' %}">Dashboard</a></li>
+        <li class="breadcrumb-item"><a href="{% url 'data_upload:my_uploads' %}">My Uploads</a></li>
+        <li class="breadcrumb-item"><a href="{% url 'data_upload:preview_data' upload.id %}">Preview</a></li>
+        <li class="breadcrumb-item active" aria-current="page">Adjust Weights</li>
+    </ol>
+</nav>
+{% endblock %}
+
+{% block content %}
+<div class="col-12">
+    <!-- Step Indicator -->
+    <div class="step-indicator">
+        <div class="step completed">
+            <div class="step-circle">1</div>
+            <div class="step-label">Upload</div>
+        </div>
+        <div class="step completed">
+            <div class="step-circle">2</div>
+            <div class="step-label">Mapping</div>
+        </div>
+        <div class="step completed">
+            <div class="step-circle">3</div>
+            <div class="step-label">Preview</div>
+        </div>
+        <div class="step active">
+            <div class="step-circle">4</div>
+            <div class="step-label">Weights</div>
+        </div>
+        <div class="step">
+            <div class="step-circle">5</div>
+            <div class="step-label">Trends</div>
+        </div>
+        <div class="step">
+            <div class="step-circle">6</div>
+            <div class="step-label">Results</div>
+        </div>
+    </div>
+
+    <div class="card">
+        <div class="card-header">
+            <h3><i class="bi bi-sliders"></i> Step 4: Adjust Parameter Weights</h3>
+        </div>
+        <div class="card-body">
+            <p class="lead">Set the importance level for each parameter</p>
+            
+            <div class="alert alert-info">
+                <h5><i class="bi bi-question-circle"></i> What are weights?</h5>
+                <p>Weights determine how much each parameter influences the ranking. Higher values mean more influence on the final candidate score.</p>
+                <ul>
+                    <li><strong>0</strong> - Parameter ignored</li>
+                    <li><strong>100</strong> - Normal importance (default)</li>
+                    <li><strong>200</strong> - Very important (maximum influence)</li>
+                </ul>
+                <p class="mb-0">Use the slider for finer control in between.</p>
+            </div>
+            
+            <form method="post">
+                {% csrf_token %}
+                
+                <div class="row">
+                    <div class="col-md-6">
+                        <div class="mb-3">
+                            <label for="bsw_weight" class="form-label">
+                                <strong>BS&W (Water %)</strong>
+                                <span class="badge bg-danger ms-1">Increasing = Bad</span>
+                            </label>
+                            <input type="range" class="form-range" id="bsw_weight" name="bsw_weight" min="0" max="200" value="{{ form.bsw_weight.value|default:'100' }}">
+                            <div class="d-flex justify-content-between">
+                                <small class="text-muted">Value: <span id="bsw_value">{{ form.bsw_weight.value|default:'100' }}</span></small>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-6">
+                        <div class="mb-3">
+                            <label for="oil_rate_weight" class="form-label">
+                                <strong>Oil Rate</strong>
+                                <span class="badge bg-warning text-dark ms-1">Decreasing = Bad</span>
+                            </label>
+                            <input type="range" class="form-range" id="oil_rate_weight" name="oil_rate_weight" min="0" max="200" value="{{ form.oil_rate_weight.value|default:'100' }}">
+                            <div class="d-flex justify-content-between">
+                                <small class="text-muted">Value: <span id="oil_value">{{ form.oil_rate_weight.value|default:'100' }}</span></small>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="row">
+                    <div class="col-md-6">
+                        <div class="mb-3">
+                            <label for="glr_weight" class="form-label">
+                                <strong>GLR</strong>
+                                <span class="badge bg-warning text-dark ms-1">Decreasing = Bad</span>
+                            </label>
+                            <input type="range" class="form-range" id="glr_weight" name="glr_weight" min="0" max="200" value="{{ form.glr_weight.value|default:'100' }}">
+                            <div class="d-flex justify-content-between">
+                                <small class="text-muted">Value: <span id="glr_value">{{ form.glr_weight.value|default:'100' }}</span></small>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-6">
+                        <div class="mb-3">
+                            <label for="tubing_pressure_weight" class="form-label">
+                                <strong>Tubing Pressure</strong>
+                                <span class="badge bg-info ms-1">Decreasing = Issue</span>
+                            </label>
+                            <input type="range" class="form-range" id="tubing_pressure_weight" name="tubing_pressure_weight" min="0" max="200" value="{{ form.tubing_pressure_weight.value|default:'50' }}">
+                            <div class="d-flex justify-content-between">
+                                <small class="text-muted">Value: <span id="tp_value">{{ form.tubing_pressure_weight.value|default:'50' }}</span></small>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="mt-4 d-flex flex-wrap gap-2">
+                    <button type="submit" class="btn btn-primary">
+                        <i class="bi bi-check-lg"></i> Save Weights & Continue
+                    </button>
+                    <a href="{% url 'data_upload:preview_data' upload.id %}" class="btn btn-secondary">
+                        <i class="bi bi-arrow-left"></i> Back
+                    </a>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<script>
+document.getElementById('bsw_weight').addEventListener('input', function() {
+    document.getElementById('bsw_value').textContent = this.value;
+});
+document.getElementById('oil_rate_weight').addEventListener('input', function() {
+    document.getElementById('oil_value').textContent = this.value;
+});
+document.getElementById('glr_weight').addEventListener('input', function() {
+    document.getElementById('glr_value').textContent = this.value;
+});
+document.getElementById('tubing_pressure_weight').addEventListener('input', function() {
+    document.getElementById('tp_value').textContent = this.value;
+});
+</script>
+{% endblock %}

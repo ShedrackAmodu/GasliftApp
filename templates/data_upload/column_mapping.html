@@ -1,0 +1,177 @@
+{% extends "base/base.html" %}
+
+{% block title %}Column Mapping - Gas Lift{% endblock %}
+
+{% block breadcrumb %}
+<nav aria-label="breadcrumb">
+    <ol class="breadcrumb breadcrumb-custom">
+        <li class="breadcrumb-item"><a href="{% url 'dashboard' %}">Dashboard</a></li>
+        <li class="breadcrumb-item"><a href="{% url 'data_upload:my_uploads' %}">My Uploads</a></li>
+        <li class="breadcrumb-item active" aria-current="page">Column Mapping</li>
+    </ol>
+</nav>
+{% endblock %}
+
+{% block content %}
+<div class="col-12">
+    <!-- Step Indicator -->
+    <div class="step-indicator">
+        <div class="step completed">
+            <div class="step-circle">1</div>
+            <div class="step-label">Upload</div>
+        </div>
+        <div class="step active">
+            <div class="step-circle">2</div>
+            <div class="step-label">Mapping</div>
+        </div>
+        <div class="step">
+            <div class="step-circle">3</div>
+            <div class="step-label">Preview</div>
+        </div>
+        <div class="step">
+            <div class="step-circle">4</div>
+            <div class="step-label">Weights</div>
+        </div>
+        <div class="step">
+            <div class="step-circle">5</div>
+            <div class="step-label">Trends</div>
+        </div>
+        <div class="step">
+            <div class="step-circle">6</div>
+            <div class="step-label">Results</div>
+        </div>
+    </div>
+
+    <div class="card">
+        <div class="card-header">
+            <h3><i class="bi bi-diagram-3"></i> Step 2: Map Your Columns</h3>
+        </div>
+        <div class="card-body">
+            <p class="lead">Map your data column to our required fields</p>
+            
+            {% if error %}
+            <div class="alert alert-danger">
+                <i class="bi bi-exclamation-triangle"></i> {{ error }}
+            </div>
+            {% endif %}
+
+            {% if auto_mapping %}
+            <div class="alert alert-info mb-3">
+                <strong><i class="bi bi-magic"></i> Auto-match suggestions:</strong>
+                <ul class="mb-0 mt-2">
+                    {% for field, column in auto_mapping.items %}
+                    <li><strong>{{ field }}</strong> → {{ column }}</li>
+                    {% endfor %}
+                </ul>
+            </div>
+            {% endif %}
+            
+            <form method="post" id="mappingForm">
+                {% csrf_token %}
+                
+                <div class="table-responsive">
+                    <table class="table table-bordered">
+                        <thead>
+                            <tr>
+                                <th style="width: 40%;">Required Field</th>
+                                <th style="width: 60%;">Your Column</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for field, selected in mapping_pairs %}
+                            <tr id="row-{{ forloop.counter }}">
+                                <td><strong>{{ field }}</strong></td>
+                                <td>
+                                    <select class="form-select column-select" data-field="{{ field }}" required>
+                                        <option value="">-- Select Column --</option>
+                                        {% for col in available_columns %}
+                                        <option value="{{ col }}" {% if selected == col %}selected{% endif %}>{{ col }}</option>
+                                        {% endfor %}
+                                    </select>
+                                    <small class="text-danger field-error" style="display: none;">This field is required</small>
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+                
+                <input type="hidden" name="mapping" id="mappingInput" value="">
+                
+                <div class="mt-3 d-flex flex-wrap gap-2">
+                    <button type="submit" class="btn btn-primary">
+                        <i class="bi bi-check-lg"></i> Save & Continue
+                    </button>
+                    <button type="button" class="btn btn-outline-secondary" id="applyAutoMapBtn">
+                        <i class="bi bi-magic"></i> Apply Auto Mapping
+                    </button>
+                    <a href="{% url 'data_upload:upload' %}" class="btn btn-secondary">
+                        <i class="bi bi-arrow-left"></i> Back
+                    </a>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+{{ auto_mapping|json_script:"auto-mapping-data" }}
+
+<script>
+document.getElementById('mappingForm').addEventListener('submit', function(e) {
+    let mapping = {};
+    let isValid = true;
+    
+    document.querySelectorAll('.column-select').forEach(select => {
+        const field = select.getAttribute('data-field');
+        const value = select.value;
+        const errorEl = select.closest('td').querySelector('.field-error');
+        
+        if (value) {
+            mapping[field] = value;
+            if (errorEl) errorEl.style.display = 'none';
+        } else {
+            isValid = false;
+            if (errorEl) errorEl.style.display = 'block';
+            select.closest('tr').classList.add('table-danger');
+        }
+    });
+    
+    if (!isValid) {
+        e.preventDefault();
+        showToast('Please select a column for all required fields.', 'danger');
+        return;
+    }
+    
+    document.getElementById('mappingInput').value = JSON.stringify(mapping);
+});
+
+// Clear error styling on selection change
+document.querySelectorAll('.column-select').forEach(select => {
+    select.addEventListener('change', function() {
+        const errorEl = this.closest('td').querySelector('.field-error');
+        if (errorEl) errorEl.style.display = 'none';
+        this.closest('tr').classList.remove('table-danger');
+    });
+});
+
+const autoMappingEl = document.getElementById('auto-mapping-data');
+const autoMapping = autoMappingEl ? JSON.parse(autoMappingEl.textContent) : {};
+const applyAutoMapBtn = document.getElementById('applyAutoMapBtn');
+if (applyAutoMapBtn) {
+    applyAutoMapBtn.addEventListener('click', function() {
+        document.querySelectorAll('.column-select').forEach(select => {
+            const field = select.getAttribute('data-field');
+            const matched = autoMapping[field];
+            if (matched) {
+                select.value = matched;
+                // Clear any error state
+                const errorEl = select.closest('td').querySelector('.field-error');
+                if (errorEl) errorEl.style.display = 'none';
+                select.closest('tr').classList.remove('table-danger');
+            }
+        });
+        showToast('Auto-mapping applied. Please verify the selections.', 'info');
+    });
+}
+</script>
+{% endblock %}

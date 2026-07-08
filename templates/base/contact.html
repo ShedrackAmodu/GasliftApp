@@ -1,0 +1,63 @@
+{% extends "base/base.html" %}
+
+{% block title %}Contact & Support - Gas Lift{% endblock %}
+
+{% block content %}
+<div class="col-12">
+    <div class="card">
+        <div class="card-header">
+            <h3>Contact & Support</h3>
+        </div>
+        <div class="card-body">
+            <div class="row">
+                <div class="col-md-6">
+                    <h4>Technical Support</h4>
+                    <p>If you're experiencing issues with the Gas Lift Opportunity Automation System, please contact:</p>
+                    <ul class="list-unstyled">
+                        <li><strong>System Administrator:</strong> [Admin Name]</li>
+                        <li><strong>Email:</strong> <a href="mailto:support@gaslift-automation.com">support@gaslift-automation.com</a></li>
+                        <li><strong>Helpdesk:</strong> <a href="#">Access Helpdesk Portal</a></li>
+                    </ul>
+                    
+                    <h4 class="mt-4">Report a Bug</h4>
+                    <p>Found something not working correctly? Please provide details including:</p>
+                    <ul>
+                        <li>What you were doing when the error occurred</li>
+                        <li>Any error messages displayed</li>
+                        <li>Browser and operating system you're using</li>
+                    </ul>
+                    <p>Send this information to <a href="mailto:support@gaslift-automation.com">support@gaslift-automation.com</a>.</p>
+                </div>
+                
+                <div class="col-md-6">
+                    <h4>Feedback</h4>
+                    <p>We welcome your suggestions for improving the system. Please use the form below to share your feedback:</p>
+                    
+                    <form method="post" action="#">
+                        {% csrf_token %}
+                        <div class="mb-3">
+                            <label for="name" class="form-label">Your Name</label>
+                            <input type="text" class="form-control" id="name" placeholder="Enter your name">
+                        </div>
+                        <div class="mb-3">
+                            <label for="email" class="form-label">Email</label>
+                            <input type="email" class="form-control" id="email" placeholder="Enter your email">
+                        </div>
+                        <div class="mb-3">
+                            <label for="message" class="form-label">Feedback / Question</label>
+                            <textarea class="form-control" id="message" rows="4" placeholder="Describe your feedback or question..."></textarea>
+                        </div>
+                        <button type="submit" class="btn btn-primary">Send Feedback</button>
+                    </form>
+                    
+                    <div class="mt-4 p-3 bg-light rounded">
+                        <h5>Quick Reference</h5>
+                        <p class="mb-1"><strong>User Manual:</strong> <a href="{% url 'user_manual' %}">View Manual</a></p>
+                        <p class="mb-0"><strong>System Version:</strong> 1.0.0</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

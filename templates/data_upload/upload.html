@@ -1,0 +1,118 @@
+{% extends "base/base.html" %}
+
+{% block title %}Upload Data - Gas Lift{% endblock %}
+
+{% block breadcrumb %}
+<nav aria-label="breadcrumb">
+    <ol class="breadcrumb breadcrumb-custom">
+        <li class="breadcrumb-item"><a href="{% url 'dashboard' %}">Dashboard</a></li>
+        <li class="breadcrumb-item active" aria-current="page">Upload Data</li>
+    </ol>
+</nav>
+{% endblock %}
+
+{% block content %}
+<div class="col-12">
+    <!-- Step Indicator -->
+    <div class="step-indicator">
+        <div class="step active">
+            <div class="step-circle">1</div>
+            <div class="step-label">Upload</div>
+        </div>
+        <div class="step">
+            <div class="step-circle">2</div>
+            <div class="step-label">Mapping</div>
+        </div>
+        <div class="step">
+            <div class="step-circle">3</div>
+            <div class="step-label">Preview</div>
+        </div>
+        <div class="step">
+            <div class="step-circle">4</div>
+            <div class="step-label">Weights</div>
+        </div>
+        <div class="step">
+            <div class="step-circle">5</div>
+            <div class="step-label">Trends</div>
+        </div>
+        <div class="step">
+            <div class="step-circle">6</div>
+            <div class="step-label">Results</div>
+        </div>
+    </div>
+
+    <div class="card">
+        <div class="card-header">
+            <h3><i class="bi bi-cloud-arrow-up"></i> Step 1: Upload Your Well Test Data</h3>
+        </div>
+        <div class="card-body">
+            <p class="lead">Upload your well test data in Excel (.xlsx) or CSV format.</p>
+            
+            <div class="alert alert-info">
+                <h5><i class="bi bi-info-circle"></i> Required File Format:</h5>
+                <ul>
+                    <li>File must be in Excel (.xlsx) or CSV (.csv) format</li>
+                    <li>Maximum file size: 100 MB</li>
+                    <li>Must contain these columns: Well, Date, BS&W (%), Net Oil (bopd), Form.GLR (scf/bbl), Prod Method, Test Status, Tubing Pressure (psi), Flow Line Pressure (psi), Well Choke Size</li>
+                </ul>
+            </div>
+            
+            {% if error %}
+            <div class="alert alert-danger">
+                <h5><i class="bi bi-exclamation-triangle"></i> Upload Error</h5>
+                <p>{{ error }}</p>
+            </div>
+            {% endif %}
+            
+            <form method="post" enctype="multipart/form-data" id="uploadForm">
+                {% csrf_token %}
+                {% if form.errors %}
+                <div class="alert alert-danger">
+                    <ul class="mb-0">
+                        {% for field in form %}
+                            {% for error in field.errors %}
+                            <li>{{ error }}</li>
+                            {% endfor %}
+                        {% endfor %}
+                        {% for error in form.non_field_errors %}
+                            <li>{{ error }}</li>
+                        {% endfor %}
+                    </ul>
+                </div>
+                {% endif %}
+                
+                <div class="mb-3">
+                    <div class="form-group">
+                        <label for="file" class="form-label"><strong>Select File to Upload:</strong></label>
+                        <div class="input-group">
+                            <input type="file" class="form-control" id="file" name="file" accept=".xlsx, .csv" required>
+                            <button type="submit" class="btn btn-primary" id="uploadBtn">
+                                <i class="bi bi-cloud-arrow-up"></i> Upload
+                            </button>
+                        </div>
+                        <small class="form-text text-muted">Accepted formats: .xlsx, .csv (Max 100 MB)</small>
+                    </div>
+                </div>
+            </form>
+            
+            <div class="alert alert-success mt-4">
+                <h5><i class="bi bi-check-circle"></i> What happens next:</h5>
+                <ol>
+                    <li>Your file will be verified for format compatibility</li>
+                    <li>You'll map columns from your file to our required fields</li>
+                    <li>You'll preview the data to ensure it's correct</li>
+                    <li>You'll run the analysis to find gas lift candidates</li>
+                </ol>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+document.getElementById('uploadForm')?.addEventListener('submit', function() {
+    var btn = document.getElementById('uploadBtn');
+    btn.disabled = true;
+    btn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Uploading...';
+});
+</script>
+{% endblock %}

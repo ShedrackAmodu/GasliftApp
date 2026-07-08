@@ -1,0 +1,505 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}Gas Lift Opportunity Automation System{% endblock %}</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.0/font/bootstrap-icons.css" rel="stylesheet">
+    <style>
+        :root {
+            --primary-color: #0056b3;
+            --primary-dark: #004494;
+            --secondary-color: #6c757d;
+            --success-color: #28a745;
+            --danger-color: #dc3545;
+            --warning-color: #ffc107;
+            --sidebar-width: 260px;
+            --navbar-height: 60px;
+        }
+        * {
+            box-sizing: border-box;
+        }
+        body {
+            background-color: #f0f2f5;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            padding-top: var(--navbar-height);
+            min-height: 100vh;
+        }
+        /* Navbar */
+        .navbar {
+            background: linear-gradient(135deg, var(--primary-color), var(--primary-dark));
+            box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+            height: var(--navbar-height);
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            z-index: 1030;
+        }
+        .navbar-brand {
+            font-weight: 700;
+            font-size: 1.2rem;
+            letter-spacing: 0.5px;
+        }
+        .navbar-brand i {
+            font-size: 1.4rem;
+            margin-right: 6px;
+        }
+        /* Sidebar */
+        .sidebar {
+            position: fixed;
+            left: 0;
+            top: var(--navbar-height);
+            width: var(--sidebar-width);
+            height: calc(100vh - var(--navbar-height));
+            background: #fff;
+            border-right: 1px solid #e0e0e0;
+            overflow-y: auto;
+            z-index: 1020;
+            transition: transform 0.3s ease;
+            padding: 0.5rem 0;
+        }
+        .sidebar .menu-section-title {
+            font-size: 0.7rem;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            color: #999;
+            padding: 0.75rem 1.25rem 0.25rem;
+            font-weight: 600;
+        }
+        .sidebar .menu-item {
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+            padding: 0.65rem 1.25rem;
+            margin: 2px 8px;
+            border-radius: 6px;
+            color: #444;
+            text-decoration: none;
+            font-size: 0.9rem;
+            transition: all 0.2s;
+        }
+        .sidebar .menu-item i {
+            width: 20px;
+            text-align: center;
+            font-size: 1.1rem;
+        }
+        .sidebar .menu-item:hover {
+            background-color: #e8f0fe;
+            color: var(--primary-color);
+        }
+        .sidebar .menu-item.active {
+            background-color: var(--primary-color);
+            color: #fff;
+        }
+        .sidebar .menu-item.active i {
+            color: #fff;
+        }
+        /* Main content */
+        .main-content {
+            margin-left: var(--sidebar-width);
+            padding: 1.5rem 2rem;
+            min-height: calc(100vh - var(--navbar-height));
+            transition: margin-left 0.3s ease;
+        }
+        /* Breadcrumbs */
+        .breadcrumb-custom {
+            background: #fff;
+            padding: 0.6rem 1rem;
+            border-radius: 8px;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+            margin-bottom: 1.25rem;
+            font-size: 0.85rem;
+        }
+        .breadcrumb-custom .breadcrumb-item a {
+            color: var(--primary-color);
+            text-decoration: none;
+        }
+        .breadcrumb-custom .breadcrumb-item a:hover {
+            text-decoration: underline;
+        }
+        .breadcrumb-custom .breadcrumb-item.active {
+            color: #666;
+        }
+        /* Cards */
+        .card {
+            border: none;
+            box-shadow: 0 2px 6px rgba(0,0,0,0.06);
+            border-radius: 10px;
+            margin-bottom: 1.25rem;
+        }
+        .card-header {
+            background: linear-gradient(135deg, var(--primary-color), var(--primary-dark));
+            color: white;
+            border: none;
+            border-radius: 10px 10px 0 0 !important;
+            padding: 1rem 1.25rem;
+        }
+        .card-header h2, .card-header h3 {
+            margin: 0;
+            font-size: 1.2rem;
+            font-weight: 600;
+        }
+        .card-body {
+            padding: 1.5rem;
+        }
+        .btn-primary {
+            background-color: var(--primary-color);
+            border-color: var(--primary-color);
+        }
+        .btn-primary:hover {
+            background-color: var(--primary-dark);
+            border-color: var(--primary-dark);
+        }
+        .badge-flag-yes {
+            background-color: var(--danger-color);
+        }
+        .badge-flag-no {
+            background-color: var(--success-color);
+        }
+        .table thead th {
+            background-color: var(--primary-color);
+            color: white;
+            border: none;
+            font-size: 0.85rem;
+            white-space: nowrap;
+        }
+        .table td {
+            vertical-align: middle;
+        }
+        /* Step indicator */
+        .step-indicator {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 2rem;
+            padding: 0 1rem;
+            position: relative;
+        }
+        .step-indicator::before {
+            content: '';
+            position: absolute;
+            top: 20px;
+            left: 40px;
+            right: 40px;
+            height: 3px;
+            background: #e0e0e0;
+            z-index: 0;
+        }
+        .step {
+            flex: 1;
+            text-align: center;
+            position: relative;
+            z-index: 1;
+        }
+        .step-circle {
+            background-color: #e9ecef;
+            border-radius: 50%;
+            width: 40px;
+            height: 40px;
+            margin: 0 auto 0.5rem;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: bold;
+            font-size: 0.9rem;
+            border: 3px solid #e0e0e0;
+            transition: all 0.3s;
+        }
+        .step.active .step-circle {
+            background-color: var(--primary-color);
+            color: white;
+            border-color: var(--primary-color);
+        }
+        .step.completed .step-circle {
+            background-color: var(--success-color);
+            color: white;
+            border-color: var(--success-color);
+        }
+        .step-label {
+            font-size: 0.75rem;
+            color: #999;
+            font-weight: 500;
+        }
+        .step.active .step-label {
+            color: var(--primary-color);
+            font-weight: 600;
+        }
+        .step.completed .step-label {
+            color: var(--success-color);
+        }
+        /* Toast container */
+        .toast-container {
+            position: fixed;
+            top: 70px;
+            right: 20px;
+            z-index: 9999;
+        }
+        /* Footer */
+        .footer {
+            background: #fff;
+            border-top: 1px solid #e0e0e0;
+            padding: 1.25rem 0;
+            margin-top: 2rem;
+            text-align: center;
+            color: #888;
+            font-size: 0.85rem;
+        }
+        .footer a {
+            color: var(--primary-color);
+            text-decoration: none;
+        }
+        .footer a:hover {
+            text-decoration: underline;
+        }
+        /* Loading overlay */
+        .loading-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(255,255,255,0.8);
+            z-index: 9998;
+            display: none;
+            align-items: center;
+            justify-content: center;
+        }
+        .loading-overlay.show {
+            display: flex;
+        }
+        .loading-spinner {
+            text-align: center;
+        }
+        .loading-spinner .spinner-border {
+            width: 3rem;
+            height: 3rem;
+        }
+        /* Responsive */
+        @media (max-width: 768px) {
+            .sidebar {
+                transform: translateX(-100%);
+            }
+            .sidebar.show {
+                transform: translateX(0);
+            }
+            .main-content {
+                margin-left: 0;
+                padding: 1rem;
+            }
+            .step-label {
+                display: none;
+            }
+            .step-indicator::before {
+                left: 20px;
+                right: 20px;
+            }
+        }
+        /* Sidebar toggle button for mobile */
+        .sidebar-toggle {
+            display: none;
+            background: none;
+            border: none;
+            color: #fff;
+            font-size: 1.5rem;
+            cursor: pointer;
+            padding: 0 0.5rem;
+        }
+        @media (max-width: 768px) {
+            .sidebar-toggle {
+                display: block;
+            }
+        }
+        /* Misc */
+        .text-muted-small {
+            font-size: 0.8rem;
+            color: #999;
+        }
+        .stat-card {
+            text-align: center;
+            padding: 1.25rem;
+        }
+        .stat-card .stat-number {
+            font-size: 2rem;
+            font-weight: 700;
+            color: var(--primary-color);
+        }
+        .stat-card .stat-label {
+            font-size: 0.85rem;
+            color: #888;
+            margin-top: 0.25rem;
+        }
+        .stat-card .stat-icon {
+            font-size: 2rem;
+            margin-bottom: 0.5rem;
+        }
+        .border-left-primary { border-left: 4px solid var(--primary-color); }
+        .border-left-info { border-left: 4px solid #17a2b8; }
+        .border-left-success { border-left: 4px solid var(--success-color); }
+        .border-left-warning { border-left: 4px solid var(--warning-color); }
+        .border-left-danger { border-left: 4px solid var(--danger-color); }
+    </style>
+    {% block extra_css %}{% endblock %}
+</head>
+<body>
+    <!-- Loading Overlay -->
+    <div class="loading-overlay" id="loadingOverlay">
+        <div class="loading-spinner">
+            <div class="spinner-border text-primary" role="status">
+                <span class="visually-hidden">Loading...</span>
+            </div>
+            <p class="mt-2 text-muted" id="loadingText">Processing...</p>
+        </div>
+    </div>
+
+    <!-- Toast Container -->
+    <div class="toast-container" id="toastContainer"></div>
+
+    <!-- Navigation -->
+    <nav class="navbar navbar-expand-lg navbar-dark">
+        <div class="container-fluid">
+            <button class="sidebar-toggle" id="sidebarToggle" type="button" aria-label="Toggle sidebar">
+                <i class="bi bi-list"></i>
+            </button>
+            <a class="navbar-brand" href="{% url 'dashboard' %}">
+                <i class="bi bi-cloud-plus"></i> Gas Lift Automation
+            </a>
+            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
+                <span class="navbar-toggler-icon"></span>
+            </button>
+            <div class="collapse navbar-collapse" id="navbarNav">
+                <ul class="navbar-nav ms-auto">
+                    {% if user.is_authenticated %}
+                    <li class="nav-item dropdown">
+                        <a class="nav-link dropdown-toggle" href="#" id="userMenu" role="button" data-bs-toggle="dropdown">
+                            <i class="bi bi-person-circle"></i> {{ user.username }}
+                        </a>
+                        <ul class="dropdown-menu dropdown-menu-end" aria-labelledby="userMenu">
+                            <li><a class="dropdown-item" href="{% url 'accounts:profile' %}"><i class="bi bi-person"></i> Profile</a></li>
+                            <li><hr class="dropdown-divider"></li>
+                            <li><a class="dropdown-item" href="{% url 'accounts:logout' %}" onclick="return confirm('Are you sure you want to logout?')"><i class="bi bi-box-arrow-right"></i> Logout</a></li>
+                        </ul>
+                    </li>
+                    {% else %}
+                    <li class="nav-item">
+                        <a class="nav-link" href="{% url 'accounts:login' %}"><i class="bi bi-box-arrow-in-right"></i> Login</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="{% url 'accounts:signup' %}"><i class="bi bi-person-plus"></i> Sign Up</a>
+                    </li>
+                    {% endif %}
+                </ul>
+            </div>
+        </div>
+    </nav>
+
+    {% if user.is_authenticated %}
+    <!-- Sidebar -->
+    <div class="sidebar" id="sidebar">
+        <div class="menu-section-title">Main</div>
+        <a href="{% url 'dashboard' %}" class="menu-item {% if request.resolver_match.url_name == 'dashboard' %}active{% endif %}">
+            <i class="bi bi-speedometer2"></i> Dashboard
+        </a>
+
+        <div class="menu-section-title">Data</div>
+        <a href="{% url 'data_upload:upload' %}" class="menu-item {% if request.resolver_match.url_name == 'upload' %}active{% endif %}">
+            <i class="bi bi-cloud-arrow-up"></i> Upload Data
+        </a>
+        <a href="{% url 'data_upload:my_uploads' %}" class="menu-item {% if request.resolver_match.url_name == 'my_uploads' %}active{% endif %}">
+            <i class="bi bi-files"></i> My Uploads
+        </a>
+
+        <div class="menu-section-title">Analysis</div>
+        <a href="{% url 'analysis:my_analyses' %}" class="menu-item {% if request.resolver_match.url_name == 'my_analyses' %}active{% endif %}">
+            <i class="bi bi-graph-up"></i> My Analyses
+        </a>
+
+        <div class="menu-section-title">Support</div>
+        <a href="{% url 'user_manual' %}" class="menu-item {% if request.resolver_match.url_name == 'user_manual' %}active{% endif %}">
+            <i class="bi bi-book"></i> User Manual
+        </a>
+        <a href="{% url 'contact' %}" class="menu-item {% if request.resolver_match.url_name == 'contact' %}active{% endif %}">
+            <i class="bi bi-envelope"></i> Contact & Support
+        </a>
+    </div>
+    {% endif %}
+
+    <!-- Main Content -->
+    <div class="main-content" id="mainContent">
+        {% block breadcrumb %}{% endblock %}
+
+        {% if messages %}
+        {% for message in messages %}
+        <div class="alert alert-{{ message.tags|default:'info' }} alert-dismissible fade show" role="alert">
+            {{ message }}
+            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+        </div>
+        {% endfor %}
+        {% endif %}
+
+        <div class="container-fluid px-0">
+            {% block content %}{% endblock %}
+        </div>
+
+        <!-- Footer -->
+        <div class="footer">
+            <div class="container">
+                <a href="{% url 'contact' %}" class="me-3">Contact & Support</a>
+                <a href="{% url 'user_manual' %}">User Manual</a>
+                <p class="mb-0 mt-2">&copy; 2026 – Gas Lift Automation Project. All rights reserved.</p>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@3.9.1/dist/chart.min.js"></script>
+    <script>
+        // Sidebar toggle for mobile
+        document.getElementById('sidebarToggle')?.addEventListener('click', function() {
+            document.getElementById('sidebar')?.classList.toggle('show');
+        });
+
+        // Toast notification system
+        function showToast(message, type) {
+            type = type || 'info';
+            var icons = {
+                'success': 'bi-check-circle-fill',
+                'danger': 'bi-exclamation-triangle-fill',
+                'warning': 'bi-exclamation-circle-fill',
+                'info': 'bi-info-circle-fill'
+            };
+            var icon = icons[type] || icons.info;
+            var container = document.getElementById('toastContainer');
+            var toastId = 'toast-' + Date.now();
+            var html = '<div id="' + toastId + '" class="toast align-items-center text-white bg-' + type + ' border-0" role="alert" aria-live="assertive" aria-atomic="true">' +
+                '<div class="d-flex">' +
+                '<div class="toast-body"><i class="bi ' + icon + ' me-2"></i>' + message + '</div>' +
+                '<button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast" aria-label="Close"></button>' +
+                '</div></div>';
+            container.insertAdjacentHTML('beforeend', html);
+            var toastEl = document.getElementById(toastId);
+            var toast = new bootstrap.Toast(toastEl, { autohide: true, delay: 5000 });
+            toast.show();
+            toastEl.addEventListener('hidden.bs.toast', function() { this.remove(); });
+        }
+
+        // Loading overlay
+        function showLoading(message) {
+            document.getElementById('loadingText').textContent = message || 'Processing...';
+            document.getElementById('loadingOverlay').classList.add('show');
+        }
+        function hideLoading() {
+            document.getElementById('loadingOverlay').classList.remove('show');
+        }
+
+        // Auto-dismiss alerts after 8 seconds
+        document.querySelectorAll('.alert-dismissible').forEach(function(alert) {
+            setTimeout(function() {
+                var bsAlert = new bootstrap.Alert(alert);
+                bsAlert.close();
+            }, 8000);
+        });
+    </script>
+    {% block extra_js %}{% endblock %}
+</body>
+</html>

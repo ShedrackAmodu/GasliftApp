@@ -1,0 +1,256 @@
+{% extends "base/base.html" %}
+
+{% block title %}User Manual - Gas Lift{% endblock %}
+
+{% block content %}
+<div class="col-12">
+    <div class="card">
+        <div class="card-header">
+            <h3>Gas Lift Opportunity Automation System - User Manual</h3>
+        </div>
+        <div class="card-body">
+            <div class="alert alert-info">
+                This manual is also available as a PDF: <a href="{% url 'dashboard' %}" class="alert-link">Download PDF</a>
+            </div>
+
+            <h4>Table of Contents</h4>
+            <ol>
+                <li><a href="#introduction">Introduction</a></li>
+                <li><a href="#how-it-works">How the System Works (Overview)</a></li>
+                <li><a href="#accessing">Accessing the System</a></li>
+                <li><a href="#step-by-step">Step by Step User Guide</a></li>
+                <li><a href="#logic">Understanding the Behind the Scenes Logic</a></li>
+                <li><a href="#troubleshooting">Troubleshooting Guide</a></li>
+                <li><a href="#faq">Frequently Asked Questions</a></li>
+                <li><a href="#glossary">Glossary</a></li>
+                <li><a href="#next-steps">Next Steps</a></li>
+                <li><a href="#contact">Contact & Support</a></li>
+            </ol>
+
+            <hr>
+
+            <h4 id="introduction">1. Introduction</h4>
+            <p>Welcome to the <strong>Gas Lift Opportunity Automation System</strong> – a smart web tool that helps you find which wells are good candidates for gas lift installation.</p>
+
+            <h5>What is Gas Lift?</h5>
+            <p>Gas lift is a method used in oil production to help wells produce more oil. Think of it like adding a straw to a drink – it helps push the oil to the surface when the well's natural pressure isn't strong enough anymore.</p>
+
+            <h5>Why This System?</h5>
+            <p>In many oilfields, engineers manually review hundreds of wells to decide which ones need gas lift. This is time consuming and can be inconsistent. This system automates that process – it analyses well test data, identifies wells with declining trends, and ranks them so you know exactly which wells to focus on.</p>
+
+            <hr>
+
+            <h4 id="how-it-works">2. How the System Works (Overview)</h4>
+            <div class="table-responsive">
+                <table class="table table-bordered">
+                    <thead>
+                        <tr><th>Step</th><th>What You Do</th><th>What the System Does</th></tr>
+                    </thead>
+                    <tbody>
+                        <tr><td>1</td><td>Upload well test data (Excel/CSV file)</td><td>Reads and stores your data</td></tr>
+                        <tr><td>2</td><td>Map your columns to the system's required fields</td><td>Matches your data to our analysis requirements</td></tr>
+                        <tr><td>3</td><td>Preview your data to check it's correct</td><td>Shows you a sample of what you uploaded</td></tr>
+                        <tr><td>4</td><td>Adjust weighting sliders (optional)</td><td>Controls how much each parameter matters in ranking</td></tr>
+                        <tr><td>5</td><td>View individual well trends</td><td>Shows you charts for each well's performance</td></tr>
+                        <tr><td>6</td><td>Click "Run Analysis"</td><td>Calculates trends and ranks all wells</td></tr>
+                        <tr><td>7</td><td>View the Results page</td><td>See ranked candidate wells with explanations</td></tr>
+                        <tr><td>8</td><td>Export results (optional)</td><td>Download reports for sharing</td></tr>
+                    </tbody>
+                </table>
+            </div>
+
+            <hr>
+
+            <h4 id="accessing">3. Accessing the System</h4>
+            <h5>Login</h5>
+            <ul>
+                <li>Open your web browser and go to the system URL (provided by your administrator).</li>
+                <li>Enter your username and password.</li>
+                <li>Click Login.</li>
+            </ul>
+
+            <h5>Dashboard</h5>
+            <p>After login, you'll see the main dashboard. From here, you can navigate to:</p>
+            <ul>
+                <li><strong>Upload Data</strong> – to start a new analysis</li>
+                <li><strong>My Analyses</strong> – to view previous analysis sessions</li>
+                <li><strong>Results</strong> – to see ranked candidates</li>
+            </ul>
+
+            <hr>
+
+            <h4 id="step-by-step">4. Step by Step User Guide</h4>
+
+            <h5>Step 1: Upload Your Well Test Data</h5>
+            <p><strong>File Requirements:</strong></p>
+            <ul>
+                <li><strong>File format:</strong> Excel (.xlsx) or CSV (.csv)</li>
+                <li><strong>Size limit:</strong> Up to 100 MB (contact your admin if you need larger files)</li>
+            </ul>
+            <p><strong>Required Columns:</strong></p>
+            <div class="table-responsive">
+                <table class="table table-bordered table-sm">
+                    <thead><tr><th>Required Parameter</th><th>What It Measures</th><th>Example Column Names</th></tr></thead>
+                    <tbody>
+                        <tr><td>Well</td><td>Well name or ID</td><td>Well, WellName, Well_ID</td></tr>
+                        <tr><td>Date</td><td>Test date</td><td>Date, TestDate, DateTime</td></tr>
+                        <tr><td>BS&W (%)</td><td>Basic Sediment & Water – percentage of water</td><td>BS&W, BSW, WaterCut, WC%</td></tr>
+                        <tr><td>Net Oil (bopd)</td><td>Oil production rate in barrels per day</td><td>NetOil, OilRate, Oil_bopd</td></tr>
+                        <tr><td>Form.GLR (scf/bbl)</td><td>Gas to liquid ratio</td><td>GLR, GasLiquidRatio, FormGLR</td></tr>
+                        <tr><td>Prod Method</td><td>How the well is currently producing</td><td>ProductionMethod, ProdMethod</td></tr>
+                        <tr><td>Test Status</td><td>Whether the test is valid</td><td>Status, TestStatus</td></tr>
+                        <tr><td>Tubing Pressure (psi)</td><td>Pressure inside the production tubing</td><td>TubingPressure, THP, TP</td></tr>
+                        <tr><td>Flow Line Pressure (psi)</td><td>Pressure in the flowline</td><td>FlowLinePressure, FLP, FP</td></tr>
+                        <tr><td>Well Choke Size</td><td>Choke opening size</td><td>ChokeSize, Choke, WellChoke</td></tr>
+                    </tbody>
+                </table>
+            </div>
+
+            <h5>Step 2: Map Your Columns</h5>
+            <p>After uploading, the system shows the Column Mapping page. This is where you tell the system which column in your file corresponds to each required parameter.</p>
+            <ul>
+                <li>For each required parameter, you'll see a dropdown menu.</li>
+                <li>Select the column name from your file that matches.</li>
+                <li>The system will try to auto match columns based on common names – check that it's correct.</li>
+                <li>If a column is missing, the system will highlight it in red.</li>
+            </ul>
+
+            <h5>Step 3: Preview Your Data</h5>
+            <p>Once columns are mapped, you can preview your uploaded data to make sure everything looks right.</p>
+
+            <h5>Step 4: Adjust Parameter Weights (Optional)</h5>
+            <p>The system analyzes four key parameters: BS&W (water percentage), Oil Rate (oil production), GLR (gas liquid ratio), and Tubing Pressure (pressure in the well).</p>
+            <div class="table-responsive">
+                <table class="table table-bordered table-sm">
+                    <thead><tr><th>Weight</th><th>Meaning</th></tr></thead>
+                    <tbody>
+                        <tr><td>0</td><td>This parameter is ignored</td></tr>
+                        <tr><td>0.5</td><td>Somewhat important</td></tr>
+                        <tr><td>1.0</td><td>Normally important (default)</td></tr>
+                        <tr><td>2.0</td><td>Very important – double the influence</td></tr>
+                    </tbody>
+                </table>
+            </div>
+
+            <h5>Step 5: View Individual Well Trends</h5>
+            <p>Before running the full analysis, you can explore how each well is performing by viewing charts of BS&W, Oil Rate, GLR, and Tubing Pressure over time.</p>
+
+            <h5>Step 6: Run the Analysis</h5>
+            <p>Click the "Run Analysis" button. The system will check data quality, calculate trends, apply your weights, and rank all wells.</p>
+
+            <h5>Step 7: View the Results</h5>
+            <div class="table-responsive">
+                <table class="table table-bordered table-sm">
+                    <thead><tr><th>Column</th><th>What It Means</th></tr></thead>
+                    <tbody>
+                        <tr><td>Well</td><td>Well name</td></tr>
+                        <tr><td>UID</td><td>Unique identifier for the well</td></tr>
+                        <tr><td>BSW_Flag</td><td>Yes = BSW is trending upward (bad)</td></tr>
+                        <tr><td>OilRate_Flag</td><td>Yes = Oil rate is trending downward (bad)</td></tr>
+                        <tr><td>GLR_Flag</td><td>Yes = GLR is trending downward (bad)</td></tr>
+                        <tr><td>Rank</td><td>Ranking from 1 (best candidate) down</td></tr>
+                        <tr><td>Summary_Comment</td><td>Plain English explanation</td></tr>
+                    </tbody>
+                </table>
+            </div>
+
+            <h5>Step 8: Export Results</h5>
+            <p>You can download your results as Excel or CSV files for reporting or further analysis.</p>
+
+            <hr>
+
+            <h4 id="logic">5. Understanding the Behind the Scenes Logic</h4>
+            <p>The system uses two statistical tools:</p>
+            <ul>
+                <li><strong>Mann Kendall Trend Test</strong> – checks if there's a real, consistent upward or downward pattern.</li>
+                <li><strong>Sen's Slope Estimator</strong> – calculates how fast the change is happening (mild, moderate, or aggressive).</li>
+            </ul>
+            <p><strong>How the Ranking Works:</strong></p>
+            <ol>
+                <li>The system calculates a "trend score" = (trend direction) × (magnitude) for each parameter.</li>
+                <li>It multiplies each score by your weight for that parameter.</li>
+                <li>It adds all scores together to get a total Candidate Score.</li>
+                <li>Higher score = higher rank (1, 2, 3...).</li>
+            </ol>
+
+            <hr>
+
+            <h4 id="troubleshooting">6. Troubleshooting Guide</h4>
+            <dl>
+                <dt>Upload failed – File format not supported</dt>
+                <dd>Make sure your file is .xlsx or .csv format.</dd>
+                
+                <dt>Column mapping error – Required column not found</dt>
+                <dd>Check that your file has all 10 required columns and map them correctly.</dd>
+                
+                <dt>No wells found – data is empty</dt>
+                <dd>Ensure your data has more than just a header row.</dd>
+                
+                <dt>Analysis runs but no wells are ranked</dt>
+                <dd>Your wells may be stable with no significant trends, or your data window is too short.</dd>
+                
+                <dt>Date format error</dt>
+                <dd>The system expects standard date formats like YYYY-MM-DD.</dd>
+                
+                <dt>The system is slow</dt>
+                <dd>If you have more than 10,000 rows, consider reducing your dataset.</dd>
+            </dl>
+
+            <hr>
+
+            <h4 id="faq">7. Frequently Asked Questions (FAQ)</h4>
+            <dl>
+                <dt>Do I need to be a statistician to use this?</dt>
+                <dd>Absolutely not. The system does all the math for you.</dd>
+                
+                <dt>Can I trust the system's recommendations?</dt>
+                <dd>Yes – the system follows the same logic that experienced engineers use.</dd>
+                
+                <dt>Can I analyze multiple fields at once?</dt>
+                <dd>Yes, as long as your data file includes all wells from different fields.</dd>
+                
+                <dt>How often should I run the analysis?</dt>
+                <dd>We recommend running it whenever you have new well test data (e.g., monthly, quarterly).</dd>
+                
+                <dt>Is my data safe?</dt>
+                <dd>Yes – all data is encrypted and stored securely.</dd>
+            </dl>
+
+            <hr>
+
+            <h4 id="glossary">8. Glossary</h4>
+            <div class="table-responsive">
+                <table class="table table-bordered table-sm">
+                    <thead><tr><th>Term</th><th>Plain English Definition</th></tr></thead>
+                    <tbody>
+                        <tr><td>BS&W</td><td>Basic Sediment & Water – the percentage of water mixed with the oil.</td></tr>
+                        <tr><td>bopd</td><td>Barrels of Oil Per Day.</td></tr>
+                        <tr><td>GLR</td><td>Gas Liquid Ratio – amount of gas per barrel of fluid.</td></tr>
+                        <tr><td>Tubing Pressure</td><td>Pressure inside the pipe that brings oil up.</td></tr>
+                        <tr><td>Trend</td><td>A consistent pattern over time – up, down, or flat.</td></tr>
+                        <tr><td>Candidate</td><td>A well that might benefit from gas lift.</td></tr>
+                        <tr><td>Rank</td><td>Your well's position in the list – #1 is the most urgent.</td></tr>
+                        <tr><td>Weight</td><td>How much importance we give to a parameter in the ranking.</td></tr>
+                    </tbody>
+                </table>
+            </div>
+
+            <hr>
+
+            <h4 id="next-steps">9. Next Steps After Using the System</h4>
+            <ol>
+                <li>Review the top 5-10 wells – these are your highest priority.</li>
+                <li>Double check with field data – visit the well site if possible.</li>
+                <li>Build a detailed well model for the top candidates to confirm gas lift benefits.</li>
+                <li>Create a workover/intervention plan – schedule the gas lift installation.</li>
+                <li>Monitor results – after gas lift is installed, run the analysis again to see improvement.</li>
+            </ol>
+
+            <hr>
+
+            <h4 id="contact">10. Contact & Support</h4>
+            <p>For support, please visit our <a href="{% url 'contact' %}">Contact & Support page</a>.</p>
+        </div>
+    </div>
+</div>
+{% endblock %}

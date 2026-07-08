@@ -1,0 +1,83 @@
+{% extends "base/base.html" %}
+
+{% block title %}Profile - Gas Lift{% endblock %}
+
+{% block breadcrumb %}
+<nav aria-label="breadcrumb">
+    <ol class="breadcrumb breadcrumb-custom">
+        <li class="breadcrumb-item"><a href="{% url 'dashboard' %}">Dashboard</a></li>
+        <li class="breadcrumb-item active" aria-current="page">Profile</li>
+    </ol>
+</nav>
+{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+    <div class="col-md-6">
+        <div class="card mt-3">
+            <div class="card-header">
+                <h3><i class="bi bi-person"></i> User Profile</h3>
+            </div>
+            <div class="card-body">
+                <div class="card bg-light mb-3">
+                    <div class="card-body">
+                        <div class="row">
+                            <div class="col-sm-4"><strong>Username:</strong></div>
+                            <div class="col-sm-8">{{ user.username }}</div>
+                        </div>
+                        <hr class="my-2">
+                        <div class="row">
+                            <div class="col-sm-4"><strong>Email:</strong></div>
+                            <div class="col-sm-8">{{ user.email }}</div>
+                        </div>
+                        <hr class="my-2">
+                        <div class="row">
+                            <div class="col-sm-4"><strong>Name:</strong></div>
+                            <div class="col-sm-8">{{ user.first_name|default:"--" }} {{ user.last_name|default:"" }}</div>
+                        </div>
+                    </div>
+                </div>
+                
+                <hr>
+                <h5><i class="bi bi-gear"></i> Update Details</h5>
+                
+                <form method="post">
+                    {% csrf_token %}
+                    
+                    {% if form.non_field_errors %}
+                    <div class="alert alert-danger">{{ form.non_field_errors }}</div>
+                    {% endif %}
+                    
+                    <div class="mb-3">
+                        <label for="company" class="form-label">Company</label>
+                        <div class="input-group">
+                            <span class="input-group-text"><i class="bi bi-building"></i></span>
+                            <input type="text" class="form-control" name="company" value="{{ profile.company|default_if_none:'' }}" placeholder="Your company name">
+                        </div>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="department" class="form-label">Department</label>
+                        <div class="input-group">
+                            <span class="input-group-text"><i class="bi bi-diagram-2"></i></span>
+                            <input type="text" class="form-control" name="department" value="{{ profile.department|default_if_none:'' }}" placeholder="e.g. Production Engineering">
+                        </div>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="role" class="form-label">Role</label>
+                        <div class="input-group">
+                            <span class="input-group-text"><i class="bi bi-briefcase"></i></span>
+                            <input type="text" class="form-control" name="role" value="{{ profile.role|default_if_none:'' }}" placeholder="e.g. Petroleum Engineer">
+                        </div>
+                    </div>
+                    
+                    <button type="submit" class="btn btn-primary">
+                        <i class="bi bi-check-lg"></i> Update Profile
+                    </button>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
