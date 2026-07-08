@@ -1,14 +1,70 @@
-import pandas as pd
+import csv
+import io
 import logging
 import re
-from django.core.files.storage import default_storage
-from .models import DataUpload, ColumnMapping, PreviewData
+from datetime import datetime
+from .models import PreviewData
 
 logger = logging.getLogger(__name__)
 
+
+def _read_csv_rows(file_path):
+    """Read CSV file and return list of dicts."""
+    try:
+        content = file_path.read().decode('utf-8-sig')
+        file_path.seek(0)
+    except AttributeError:
+        with open(file_path, 'r', encoding='utf-8-sig') as f:
+            content = f.read()
+
+    reader = csv.DictReader(io.StringIO(content))
+    return [
+        {k.strip(): v.strip() if v else None for k, v in row.items()}
+        for row in reader
+    ]
+
+
+def _read_excel_rows(file_path):
+    """Read Excel file using openpyxl and return list of dicts with column headers."""
+    from openpyxl import load_workbook
+
+    wb = load_workbook(file_path, read_only=True, data_only=True)
+    ws = wb.active
+
+    rows = []
+    headers = []
+    for row_idx, row in enumerate(ws.iter_rows(values_only=True)):
+        if row_idx == 0:
+            headers = [str(cell).strip() if cell is not None else '' for cell in row]
+        else:
+            row_dict = {}
+            for col_idx, cell_value in enumerate(row):
+                if col_idx < len(headers):
+                    key = headers[col_idx]
+                    if cell_value is not None:
+                        row_dict[key] = str(cell_value).strip()
+                    else:
+                        row_dict[key] = None
+            if any(v is not None for v in row_dict.values()):
+                rows.append(row_dict)
+
+    wb.close()
+    return rows
+
+
+def _coerce_numeric(value):
+    """Convert a value to float, return None if not possible."""
+    if value is None or value == '':
+        return None
+    try:
+        return float(value)
+    except (ValueError, TypeError):
+        return None
+
+
 class DataProcessor:
     """Handles data processing and validation."""
-    
+
     REQUIRED_FIELDS = [
         'Well',
         'Date',
@@ -34,18 +90,28 @@ class DataProcessor:
         'Flow Line Pressure (psi)': ['flowlinepressure', 'flp', 'fp', 'flowlinepressurepsi'],
         'Well Choke Size': ['wellchokesize', 'chokesize', 'choke', 'wellchoke', 'choke size'],
     }
-    
+
     @staticmethod
-    def detect_columns(df):
-        """Detect available columns in uploaded file"""
-        return list(df.columns)
+    def read_file(file_obj, file_format):
+        """Read file and return list of dict rows."""
+        if file_format == 'xlsx':
+            return _read_excel_rows(file_obj)
+        else:
+            return _read_csv_rows(file_obj)
+
+    @staticmethod
+    def detect_columns(rows):
+        """Detect available columns from a list of dict rows."""
+        if not rows:
+            return []
+        return list(rows[0].keys())
 
     @staticmethod
     def normalize_name(value):
         if value is None:
             return ''
         return re.sub(r'[^a-z0-9]+', '', str(value).lower())
-    
+
     @classmethod
     def auto_map_columns(cls, available_columns):
         """Suggest likely column matches for the required fields."""
@@ -90,7 +156,7 @@ class DataProcessor:
                 mapping[field] = best_match
 
         return mapping
-    
+
     @staticmethod
     def validate_mapping(mapping):
         """Validate that all required fields are mapped"""
@@ -108,83 +174,148 @@ class DataProcessor:
                 return False
 
         return True
-    
+
     @staticmethod
     def process_data(upload, mapping):
         """
-        Process and validate uploaded data based on column mapping
+        Process and validate uploaded data based on column mapping.
+        Returns: (rows_list, quality_report, error)
         """
         try:
-            # Read file
-            if upload.file_format == 'xlsx':
-                df = pd.read_excel(upload.file)
-            else:  # csv
-                df = pd.read_csv(upload.file)
-            
+            rows = DataProcessor.read_file(upload.file, upload.file_format)
+
             # Rename columns according to mapping
             reverse_mapping = {v: k for k, v in mapping.items()}
-            df = df.rename(columns=reverse_mapping)
-            
+            mapped_rows = []
+            for row in rows:
+                new_row = {}
+                for orig_key, value in row.items():
+                    if orig_key in reverse_mapping:
+                        new_row[reverse_mapping[orig_key]] = value
+                    else:
+                        new_row[orig_key] = value
+                mapped_rows.append(new_row)
+
+            # Remove fully empty rows
+            mapped_rows = [r for r in mapped_rows if any(v is not None for v in r.values())]
+
             # Data quality checks
             quality_report = {
-                'total_rows': len(df),
-                'missing_values': df.isnull().sum().to_dict(),
-                'data_types': df.dtypes.astype(str).to_dict(),
+                'total_rows': len(mapped_rows),
+                'missing_values': {},
+                'data_types': {},
                 'warnings': []
             }
-            
-            # Check for empty rows
-            df = df.dropna(how='all')
-            
+
+            # Count missing values per field
+            for field in DataProcessor.REQUIRED_FIELDS:
+                missing_count = sum(1 for r in mapped_rows if r.get(field) is None or r.get(field) == '')
+                quality_report['missing_values'][field] = missing_count
+
+            # Infer data types from first non-null value
+            for field in DataProcessor.REQUIRED_FIELDS:
+                for r in mapped_rows:
+                    val = r.get(field)
+                    if val is not None and val != '':
+                        if _coerce_numeric(val) is not None:
+                            quality_report['data_types'][field] = 'float64'
+                        else:
+                            quality_report['data_types'][field] = 'object'
+                        break
+                else:
+                    quality_report['data_types'][field] = 'unknown'
+
             # Validate numeric columns
-            numeric_cols = ['BS&W (%)', 'Net Oil (bopd)', 'Form.GLR (scf/bbl)', 
+            numeric_cols = ['BS&W (%)', 'Net Oil (bopd)', 'Form.GLR (scf/bbl)',
                           'Tubing Pressure (psi)', 'Flow Line Pressure (psi)']
-            
+
             for col in numeric_cols:
-                if col in df.columns:
-                    try:
-                        df[col] = pd.to_numeric(df[col], errors='coerce')
-                    except Exception as e:
-                        quality_report['warnings'].append(f"Could not convert {col} to numeric: {str(e)}")
-            
+                for r in mapped_rows:
+                    val = r.get(col)
+                    if val is not None and val != '' and _coerce_numeric(val) is None:
+                        quality_report['warnings'].append(
+                            f"Could not convert some values in {col} to numeric"
+                        )
+                        break
+
             # Validate dates
-            try:
-                df['Date'] = pd.to_datetime(df['Date'])
-            except Exception as e:
-                quality_report['warnings'].append(f"Could not parse dates: {str(e)}")
-            
-            return df, quality_report, None
-            
+            invalid_dates = 0
+            for r in mapped_rows:
+                val = r.get('Date')
+                if val is not None and val != '':
+                    try:
+                        _parse_date(val)
+                    except (ValueError, TypeError):
+                        invalid_dates += 1
+            if invalid_dates > 0:
+                quality_report['warnings'].append(
+                    f"Could not parse {invalid_dates} date(s)"
+                )
+
+            return mapped_rows, quality_report, None
+
         except Exception as e:
             logger.error(f"Error processing data: {str(e)}")
             return None, None, str(e)
-    
+
     @staticmethod
     def create_preview(upload, mapping):
         """Create preview data (first 50 rows)"""
-        df, quality_report, error = DataProcessor.process_data(upload, mapping)
-        
+        rows, quality_report, error = DataProcessor.process_data(upload, mapping)
+
         if error:
             return None, error
-        
-        # Sample first 50 rows
-        sample = df.head(50).to_dict('records')
-        
-        # Convert any non-serializable types (e.g. Timestamp) to strings
+
+        # Sample first 50 rows, converting any non-serializable types
+        sample = rows[:50]
         for row in sample:
             for key, value in row.items():
-                if hasattr(value, 'isoformat'):
+                if isinstance(value, datetime):
                     row[key] = value.isoformat()
-                elif isinstance(value, (pd.Timestamp, pd.Period, pd.Interval)):
+                elif isinstance(value, (bytes, bytearray)):
                     row[key] = str(value)
-                elif pd.isna(value):
+                elif value is None:
                     row[key] = None
-        
+
         # Create preview record
         preview = PreviewData.objects.create(
             upload=upload,
             sample_data=sample,
             data_quality_report=quality_report
         )
-        
+
         return preview, None
+
+
+def _parse_date(value):
+    """Parse a date string into a datetime object. Raises ValueError on failure."""
+    if isinstance(value, datetime):
+        return value
+    if isinstance(value, (int, float)):
+        # Could be Excel serial date number
+        from datetime import timedelta
+        excel_epoch = datetime(1899, 12, 30)
+        return excel_epoch + timedelta(days=float(value))
+
+    value = str(value).strip()
+    # Try common date formats
+    formats = [
+        '%Y-%m-%d',
+        '%m/%d/%Y',
+        '%d/%m/%Y',
+        '%Y/%m/%d',
+        '%m-%d-%Y',
+        '%d-%m-%Y',
+        '%Y%m%d',
+        '%m/%d/%Y %H:%M:%S',
+        '%Y-%m-%d %H:%M:%S',
+        '%d-%b-%Y',  # e.g., 01-Jan-2024
+        '%d-%b-%y',
+    ]
+    for fmt in formats:
+        try:
+            return datetime.strptime(value, fmt)
+        except ValueError:
+            continue
+
+    raise ValueError(f"Unable to parse date: {value}")

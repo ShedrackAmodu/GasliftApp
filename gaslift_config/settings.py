@@ -3,18 +3,17 @@ Django settings for gaslift_project project.
 """
 import os
 from pathlib import Path
-from decouple import config, Csv
 
 # Build paths inside the project
 BASE_DIR = Path(__file__).resolve().parent.parent
 
 # SECURITY WARNING: keep the secret key used in production secret!
-SECRET_KEY = config('SECRET_KEY', default='django-insecure-dev-key-change-in-production')
+SECRET_KEY = 'django-insecure-dev-key-change-in-production'
 
 # SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = config('DEBUG', default=False, cast=bool)
+DEBUG = False
 
-ALLOWED_HOSTS = config('ALLOWED_HOSTS', default='Amodu.pythonanywhere.com', cast=Csv())
+ALLOWED_HOSTS = ['Amodu.pythonanywhere.com', 'localhost', '127.0.0.1']
 
 # Application definition
 INSTALLED_APPS = [

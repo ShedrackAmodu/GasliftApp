@@ -5,12 +5,13 @@ from django.views.decorators.http import require_http_methods, require_POST
 from django.utils import timezone
 from django.db import transaction
 from django.contrib import messages
-import pandas as pd
+from datetime import datetime
 
 from apps.data_upload.models import DataUpload, ColumnMapping, PreviewData
 from .models import AnalysisSession, AnalysisWeights, WellTrendAnalysis
 from .forms import AnalysisWeightsForm, AnalysisSessionForm
 from .utils import TrendAnalyzer, SummaryGenerator
+from apps.data_upload.utils import DataProcessor, _parse_date
 
 
 @login_required(login_url='accounts:login')
@@ -66,7 +67,7 @@ def well_trends(request, analysis_id):
     # Get the data
     try:
         col_mapping = ColumnMapping.objects.get(upload=analysis.upload)
-        df = _load_data(analysis.upload, col_mapping.mapping)
+        rows = _load_data(analysis.upload, col_mapping.mapping)
     except ColumnMapping.DoesNotExist:
         return render(request, 'analysis/well_trends.html', {
             'analysis': analysis,
@@ -78,7 +79,7 @@ def well_trends(request, analysis_id):
             'error': f'Error loading data: {str(e)}'
         })
 
-    wells = df['Well'].unique() if 'Well' in df.columns else []
+    wells = _unique_wells(rows)
 
     if len(wells) == 0:
         return render(request, 'analysis/well_trends.html', {
@@ -103,24 +104,24 @@ def get_well_data(request, analysis_id, well_name):
 
     try:
         col_mapping = ColumnMapping.objects.get(upload=analysis.upload)
-        df = _load_data(analysis.upload, col_mapping.mapping)
+        rows = _load_data(analysis.upload, col_mapping.mapping)
 
         # Filter for well
-        well_data = df[df['Well'] == well_name]
+        well_rows = [r for r in rows if r.get('Well') == well_name]
 
-        if well_data.empty:
+        if not well_rows:
             return JsonResponse({'error': f'No data found for well: {well_name}'}, status=404)
 
         # Sort by date
-        well_data = well_data.sort_values('Date')
+        well_rows.sort(key=lambda r: _parse_date(r.get('Date', '')) if r.get('Date') else datetime.min)
 
         # Prepare chart data
         data = {
-            'dates': well_data['Date'].dt.strftime('%Y-%m-%d').tolist() if 'Date' in well_data.columns else [],
-            'bsw': _safe_series_to_list(well_data['BS&W (%)']) if 'BS&W (%)' in well_data.columns else [],
-            'oil_rate': _safe_series_to_list(well_data['Net Oil (bopd)']) if 'Net Oil (bopd)' in well_data.columns else [],
-            'glr': _safe_series_to_list(well_data['Form.GLR (scf/bbl)']) if 'Form.GLR (scf/bbl)' in well_data.columns else [],
-            'tubing_pressure': _safe_series_to_list(well_data['Tubing Pressure (psi)']) if 'Tubing Pressure (psi)' in well_data.columns else [],
+            'dates': [str(_parse_date(r.get('Date', ''))).split()[0] if r.get('Date') else '' for r in well_rows],
+            'bsw': _safe_series_to_list([r.get('BS&W (%)') for r in well_rows]),
+            'oil_rate': _safe_series_to_list([r.get('Net Oil (bopd)') for r in well_rows]),
+            'glr': _safe_series_to_list([r.get('Form.GLR (scf/bbl)') for r in well_rows]),
+            'tubing_pressure': _safe_series_to_list([r.get('Tubing Pressure (psi)') for r in well_rows]),
         }
 
         return JsonResponse(data)
@@ -147,9 +148,9 @@ def run_analysis(request, analysis_id):
             weights = AnalysisWeights.objects.get(analysis=analysis)
 
             # Load data
-            df = _load_data(analysis.upload, col_mapping.mapping)
+            rows = _load_data(analysis.upload, col_mapping.mapping)
 
-            if df.empty:
+            if not rows:
                 raise ValueError('No data found in the uploaded file.')
 
             # Delete any existing well trends for this analysis (prevents duplicates on re-run)
@@ -157,26 +158,30 @@ def run_analysis(request, analysis_id):
 
             # Analyze each well
             well_trends = []
-            wells = df['Well'].unique()
+            wells = _unique_wells(rows)
 
             if len(wells) == 0:
                 raise ValueError('No wells found in the data. Please check that the "Well" column is correctly mapped.')
 
             for well_id in wells:
-                well_data = df[df['Well'] == well_id].sort_values('Date')
+                well_rows = [r for r in rows if r.get('Well') == well_id]
+                well_rows.sort(key=lambda r: _parse_date(r.get('Date', '')) if r.get('Date') else datetime.min)
 
-                if len(well_data) < 5:  # Need at least 5 data points
+                if len(well_rows) < 5:  # Need at least 5 data points
                     continue
 
                 # Filter out invalid test statuses if column exists
-                if 'Test Status' in well_data.columns:
+                if well_rows[0].get('Test Status') is not None:
                     valid_statuses = ['normal', 'valid', 'ok', 'good', 'producing', 'active', '']
-                    well_data = well_data[well_data['Test Status'].str.lower().fillna('').isin(valid_statuses)]
-                    if len(well_data) < 3:
+                    well_rows = [
+                        r for r in well_rows
+                        if str(r.get('Test Status', '')).lower().strip() in valid_statuses
+                    ]
+                    if len(well_rows) < 3:
                         continue
 
                 # Analyze trends
-                trends = TrendAnalyzer.analyze_well(well_data, weights)
+                trends = TrendAnalyzer.analyze_well(well_rows, weights)
 
                 # Create well trend record
                 trend_obj = WellTrendAnalysis.objects.create(
@@ -272,33 +277,64 @@ def delete_analysis(request, analysis_id):
 
 
 def _load_data(upload, mapping):
-    """Helper to load and map data from upload"""
-    if upload.file_format == 'xlsx':
-        df = pd.read_excel(upload.file)
-    else:
-        df = pd.read_csv(upload.file)
+    """Helper to load and map data from upload. Returns list of dicts."""
+    rows = DataProcessor.read_file(upload.file, upload.file_format)
 
-    if df.empty:
-        return df
+    if not rows:
+        return []
 
     # Rename columns
     reverse_mapping = {v: k for k, v in mapping.items()}
-    df = df.rename(columns=reverse_mapping)
+    mapped_rows = []
+    for row in rows:
+        new_row = {}
+        for orig_key, value in row.items():
+            if orig_key in reverse_mapping:
+                new_row[reverse_mapping[orig_key]] = value
+            else:
+                new_row[orig_key] = value
+        mapped_rows.append(new_row)
 
-    # Convert date
-    if 'Date' in df.columns:
-        df['Date'] = pd.to_datetime(df['Date'], errors='coerce')
+    # Convert date strings to datetime objects
+    for row in mapped_rows:
+        if row.get('Date') is not None and row['Date'] != '':
+            try:
+                row['Date'] = _parse_date(row['Date'])
+            except (ValueError, TypeError):
+                row['Date'] = None
+        else:
+            row['Date'] = None
 
     # Convert numeric columns
     numeric_cols = ['BS&W (%)', 'Net Oil (bopd)', 'Form.GLR (scf/bbl)',
                    'Tubing Pressure (psi)', 'Flow Line Pressure (psi)']
     for col in numeric_cols:
-        if col in df.columns:
-            df[col] = pd.to_numeric(df[col], errors='coerce')
+        for row in mapped_rows:
+            if col in row:
+                val = row[col]
+                if val is not None and val != '':
+                    try:
+                        row[col] = float(val)
+                    except (ValueError, TypeError):
+                        row[col] = None
+                else:
+                    row[col] = None
 
-    return df
+    return mapped_rows
 
 
 def _safe_series_to_list(series):
-    """Convert pandas Series to list, handling NaN values."""
-    return [None if pd.isna(x) else x for x in series.tolist()]
+    """Convert a list of values to a JSON-safe list, keeping None for nulls."""
+    return [x if x is not None else None for x in series]
+
+
+def _unique_wells(rows):
+    """Get unique well names from data, preserving order."""
+    seen = set()
+    wells = []
+    for r in rows:
+        well = r.get('Well')
+        if well is not None and well not in seen:
+            seen.add(well)
+            wells.append(well)
+    return wells

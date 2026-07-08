@@ -79,17 +79,11 @@ def column_mapping(request, upload_id):
         return redirect('data_upload:preview_data', upload_id=upload.id)
     
     # Try to read columns from uploaded file
-    import pandas as pd
-    
     try:
-        if upload.file_format == 'xlsx':
-            df = pd.read_excel(upload.file)
-        else:
-            df = pd.read_csv(upload.file)
-        
-        available_columns = list(df.columns)
+        rows = DataProcessor.read_file(upload.file, upload.file_format)
+        available_columns = DataProcessor.detect_columns(rows)
         upload.columns = available_columns
-        upload.total_rows = len(df)
+        upload.total_rows = len(rows)
         upload.save()
     except Exception as e:
         upload.error_message = str(e)
