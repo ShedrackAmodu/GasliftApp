@@ -1,4 +1,5 @@
 .env
+.env.production
 *.pyc
 __pycache__/
 .Python
