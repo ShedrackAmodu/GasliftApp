@@ -52,10 +52,13 @@
             <div class="d-flex flex-wrap gap-2 mb-3">
                 <div class="btn-group" role="group">
                     <a href="{% url 'results:export_excel' analysis.id %}" class="btn btn-outline-primary">
-                        <i class="bi bi-file-earmark-excel"></i> Export Excel
+                        <i class="bi bi-file-earmark-excel"></i> Excel
                     </a>
                     <a href="{% url 'results:export_csv' analysis.id %}" class="btn btn-outline-primary">
-                        <i class="bi bi-file-earmark-csv"></i> Export CSV
+                        <i class="bi bi-file-earmark-csv"></i> CSV
+                    </a>
+                    <a href="{% url 'results:export_pdf' analysis.id %}" class="btn btn-outline-danger">
+                        <i class="bi bi-file-earmark-pdf"></i> PDF Report
                     </a>
                     <button class="btn btn-outline-secondary" onclick="window.print()">
                         <i class="bi bi-printer"></i> Print
@@ -64,36 +67,44 @@
                 <span class="badge bg-info fs-6 align-self-center">
                     <i class="bi bi-bar-chart"></i> {{ total_wells }} well(s) analyzed
                 </span>
+                <a href="{% url 'analysis:compare_analyses' %}" class="btn btn-outline-info">
+                    <i class="bi bi-arrows-collapse"></i> Compare With Another Run
+                </a>
             </div>
             
             <!-- Filter Controls -->
-            <div class="row mb-3 g-2">
-                <div class="col-md-3">
-                    <input type="text" id="searchFilter" class="form-control" placeholder="Search well name or comment..." onkeyup="filterTable()">
+            <div class="row mb-3 g-2 no-print">
+                <div class="col-12 col-sm-6 col-md-3">
+                    <input type="text" id="searchFilter" class="form-control" placeholder="Search well or comment..." onkeyup="filterTable()">
                 </div>
-                <div class="col-md-2">
+                <div class="col-6 col-sm-4 col-md-2">
                     <select id="bswFilter" class="form-select" onchange="filterTable()">
-                        <option value="">All BSW Flags</option>
-                        <option value="true">Yes (Bad)</option>
-                        <option value="false">No</option>
+                        <option value="">All BSW</option>
+                        <option value="true">Bad</option>
+                        <option value="false">Good</option>
                     </select>
                 </div>
-                <div class="col-md-2">
+                <div class="col-6 col-sm-4 col-md-2">
                     <select id="oilFilter" class="form-select" onchange="filterTable()">
-                        <option value="">All Oil Rate Flags</option>
-                        <option value="true">Yes (Bad)</option>
-                        <option value="false">No</option>
+                        <option value="">All Oil</option>
+                        <option value="true">Bad</option>
+                        <option value="false">Good</option>
                     </select>
                 </div>
-                <div class="col-md-2">
+                <div class="col-6 col-sm-4 col-md-2">
                     <select id="glrFilter" class="form-select" onchange="filterTable()">
-                        <option value="">All GLR Flags</option>
-                        <option value="true">Yes (Bad)</option>
-                        <option value="false">No</option>
+                        <option value="">All GLR</option>
+                        <option value="true">Bad</option>
+                        <option value="false">Good</option>
                     </select>
                 </div>
-                <div class="col-md-3">
-                    <input type="text" id="prodMethodFilter" class="form-control" placeholder="Production Method..." onkeyup="filterTable()">
+                <div class="col-6 col-sm-6 col-md-3">
+                    <input type="text" id="prodMethodFilter" class="form-control" placeholder="Prod Method..." onkeyup="filterTable()">
+                </div>
+                <div class="col-6 col-sm-6 col-md-2">
+                    <button type="button" class="btn btn-outline-secondary w-100" onclick="clearFilters()">
+                        <i class="bi bi-x-circle"></i> Clear Filters
+                    </button>
                 </div>
             </div>
             
@@ -107,11 +118,12 @@
                             <th>BSW</th>
                             <th>Oil Rate</th>
                             <th>GLR</th>
-                            <th>BSW Trend</th>
-                            <th>Oil Rate Trend</th>
-                            <th>GLR Trend</th>
                             <th>Score</th>
-                            <th>Prod Method</th>
+                            <th>Data Quality</th>
+                            <th>Liquid Loading</th>
+                            <th>Urgency</th>
+                            <th>Feasibility</th>
+                            <th>Method</th>
                             <th>Summary</th>
                         </tr>
                     </thead>
@@ -151,41 +163,81 @@
                                 <span class="badge badge-flag-no">No</span>
                                 {% endif %}
                             </td>
-                            <td>{{ trend.bsw_trend|default:"--" }}</td>
-                            <td>{{ trend.oil_rate_trend|default:"--" }}</td>
-                            <td>{{ trend.glr_trend|default:"--" }}</td>
                             <td><strong>{{ trend.candidate_score|floatformat:0 }}</strong></td>
-                            <td>{{ trend.prod_method|default:"--" }}</td>
-                            <td><small>{{ trend.summary_comment }}</small></td>
+                            <td>
+                                <small>{{ trend.data_quality_score|floatformat:1 }}%</small><br>
+                                <small class="text-muted">{{ trend.outlier_count }} outliers</small>
+                            </td>
+                            <td>
+                                {% if trend.liquid_loading_flag %}
+                                <span class="badge bg-danger">Yes</span>
+                                {% else %}
+                                <span class="badge bg-success">No</span>
+                                {% endif %}
+                            </td>
+                            <td>
+                                {% if trend.days_to_economic_limit is not None %}
+                                <span class="badge {% if trend.days_to_economic_limit <= 90 %}bg-danger{% elif trend.days_to_economic_limit <= 180 %}bg-warning text-dark{% else %}bg-success{% endif %}">
+                                    {{ trend.days_to_economic_limit }}d
+                                </span>
+                                {% else %}
+                                <small class="text-muted">N/A</small>
+                                {% endif %}
+                            </td>
+                            <td>
+                                {% if trend.completion_feasibility == 'feasible' %}
+                                <span class="badge bg-success">Feasible</span>
+                                {% elif trend.completion_feasibility == 'requires_deepening' %}
+                                <span class="badge bg-warning text-dark">Deepen</span>
+                                {% elif trend.completion_feasibility == 'pressure_limited' %}
+                                <span class="badge bg-danger">Pressure</span>
+                                {% else %}
+                                <span class="badge bg-secondary">Unknown</span>
+                                {% endif %}
+                            </td>
+                            <td><small>{{ trend.prod_method|truncatechars:10 }}</small></td>
+                            <td>
+                                <small data-bs-toggle="tooltip" title="{{ trend.summary_comment }}">
+                                    {{ trend.summary_comment|truncatechars:35 }}
+                                </small>
+                            </td>
                         </tr>
                         {% endfor %}
                     </tbody>
                 </table>
             </div>
-            
+
             <!-- Pagination -->
-            {% if page_obj.has_other_pages %}
-            <nav aria-label="Page navigation">
+            {% if page_obj.paginator.num_pages > 1 %}
+            <nav aria-label="Results navigation">
                 <ul class="pagination justify-content-center">
                     {% if page_obj.has_previous %}
                     <li class="page-item">
-                        <a class="page-link" href="?page=1"><i class="bi bi-chevron-double-left"></i></a>
+                        <a class="page-link" href="?page=1">&laquo; First</a>
                     </li>
                     <li class="page-item">
-                        <a class="page-link" href="?page={{ page_obj.previous_page_number }}"><i class="bi bi-chevron-left"></i></a>
+                        <a class="page-link" href="?page={{ page_obj.previous_page_number }}">Previous</a>
                     </li>
                     {% endif %}
-                    
-                    <li class="page-item active">
-                        <span class="page-link">Page {{ page_obj.number }} of {{ page_obj.paginator.num_pages }}</span>
-                    </li>
-                    
+
+                    {% for num in page_obj.paginator.page_range %}
+                        {% if page_obj.number == num %}
+                        <li class="page-item active">
+                            <span class="page-link">{{ num }}</span>
+                        </li>
+                        {% elif num > page_obj.number|add:'-3' and num < page_obj.number|add:'3' %}
+                        <li class="page-item">
+                            <a class="page-link" href="?page={{ num }}">{{ num }}</a>
+                        </li>
+                        {% endif %}
+                    {% endfor %}
+
                     {% if page_obj.has_next %}
                     <li class="page-item">
-                        <a class="page-link" href="?page={{ page_obj.next_page_number }}"><i class="bi bi-chevron-right"></i></a>
+                        <a class="page-link" href="?page={{ page_obj.next_page_number }}">Next</a>
                     </li>
                     <li class="page-item">
-                        <a class="page-link" href="?page={{ page_obj.paginator.num_pages }}"><i class="bi bi-chevron-double-right"></i></a>
+                        <a class="page-link" href="?page={{ page_obj.paginator.num_pages }}">Last &raquo;</a>
                     </li>
                     {% endif %}
                 </ul>
@@ -193,78 +245,141 @@
             {% endif %}
             {% else %}
             <div class="alert alert-info">
-                <i class="bi bi-info-circle"></i>
-                <p class="mb-0">No wells show adverse trends. Your wells appear to be stable producers.</p>
+                <i class="bi bi-info-circle"></i> No results to display. The analysis may still be processing or no wells met the criteria.
             </div>
             {% endif %}
-            
-            <div class="mt-4 d-flex flex-wrap gap-2">
-                <a href="{% url 'analysis:my_analyses' %}" class="btn btn-secondary">
-                    <i class="bi bi-arrow-left"></i> Back to Analyses
-                </a>
-                <a href="{% url 'data_upload:upload' %}" class="btn btn-primary">
-                    <i class="bi bi-cloud-arrow-up"></i> Start New Analysis
-                </a>
-            </div>
         </div>
     </div>
 </div>
 
+<style>
+/* Print-specific styling */
+@media print {
+    .no-print, .no-print * {
+        display: none !important;
+    }
+    .sidebar, .navbar, .footer, .sidebar-toggle, .breadcrumb-custom,
+    .toast-container, .loading-overlay, .btn-group, .badge.bg-info, 
+    .card-header, .step-indicator {
+        display: none !important;
+    }
+    .main-content {
+        margin-left: 0 !important;
+        padding: 0 !important;
+    }
+    .card {
+        box-shadow: none !important;
+        border: 1px solid #ccc !important;
+        break-inside: avoid;
+    }
+    .card-body {
+        padding: 0.5rem !important;
+    }
+    .table {
+        font-size: 0.75rem !important;
+    }
+    .table thead th {
+        background: #1a5276 !important;
+        -webkit-print-color-adjust: exact !important;
+        print-color-adjust: exact !important;
+    }
+    .table-warning {
+        -webkit-print-color-adjust: exact !important;
+        print-color-adjust: exact !important;
+    }
+    .badge {
+        -webkit-print-color-adjust: exact !important;
+        print-color-adjust: exact !important;
+    }
+    body {
+        background: white !important;
+    }
+    .table-responsive {
+        overflow: visible !important;
+    }
+    table {
+        page-break-inside: auto;
+    }
+    tr {
+        page-break-inside: avoid;
+        page-break-after: auto;
+    }
+    thead {
+        display: table-header-group;
+    }
+    tfoot {
+        display: table-footer-group;
+    }
+}
+
+/* Tooltip on hover */
+[data-bs-toggle="tooltip"] {
+    cursor: help;
+}
+</style>
+{% endblock %}
+
+{% block extra_js %}
 <script>
+// Initialize tooltips
+document.addEventListener('DOMContentLoaded', function() {
+    var tooltipTriggerList = [].slice.call(document.querySelectorAll('[data-bs-toggle="tooltip"]'));
+    tooltipTriggerList.map(function(el) {
+        return new bootstrap.Tooltip(el);
+    });
+});
+
+// Debounced filter
+function debounce(func, wait) {
+    let timeout;
+    return function() {
+        clearTimeout(timeout);
+        timeout = setTimeout(() => func.apply(this, arguments), wait);
+    };
+}
+
 function filterTable() {
-    var searchValue = document.getElementById('searchFilter').value.toLowerCase();
-    var bswValue = document.getElementById('bswFilter').value;
-    var oilValue = document.getElementById('oilFilter').value;
-    var glrValue = document.getElementById('glrFilter').value;
-    var prodMethodValue = document.getElementById('prodMethodFilter').value.toLowerCase();
+    var searchVal = (document.getElementById('searchFilter')?.value || '').toLowerCase();
+    var bswVal = document.getElementById('bswFilter')?.value || '';
+    var oilVal = document.getElementById('oilFilter')?.value || '';
+    var glrVal = document.getElementById('glrFilter')?.value || '';
+    var prodVal = (document.getElementById('prodMethodFilter')?.value || '').toLowerCase();
     
     var table = document.getElementById('resultsTable');
     if (!table) return;
-    var rows = table.getElementsByTagName('tbody')[0].getElementsByTagName('tr');
+    var rows = table.querySelectorAll('tbody tr');
     
-    for (var i = 0; i < rows.length; i++) {
-        var row = rows[i];
-        var cells = row.getElementsByTagName('td');
-        var showRow = true;
+    rows.forEach(function(row) {
+        var cells = row.querySelectorAll('td');
+        if (cells.length < 12) return;
         
-        // Search filter (well name or summary)
-        if (searchValue) {
-            var wellCell = cells[1] ? cells[1].textContent.toLowerCase() : '';
-            var summaryCell = cells[10] ? cells[10].textContent.toLowerCase() : '';
-            if (wellCell.indexOf(searchValue) === -1 && summaryCell.indexOf(searchValue) === -1) {
-                showRow = false;
-            }
-        }
+        var well = cells[1].textContent.toLowerCase();
+        var bsw = cells[2].querySelector('.badge')?.textContent?.trim() || '';
+        var oil = cells[3].querySelector('.badge')?.textContent?.trim() || '';
+        var glr = cells[4].querySelector('.badge')?.textContent?.trim() || '';
+        var summary = cells[11].textContent.toLowerCase();
+        var prodMethod = cells[10].textContent.toLowerCase();
         
-        // BSW flag filter
-        if (showRow && bswValue) {
-            var bswCell = cells[2] ? cells[2].textContent.trim() : '';
-            var bswMatch = (bswValue === 'true' && bswCell === 'Yes') || (bswValue === 'false' && bswCell === 'No');
-            if (!bswMatch) showRow = false;
-        }
+        var matchesSearch = !searchVal || well.includes(searchVal) || summary.includes(searchVal);
+        var matchesBsw = !bswVal || bsw.toLowerCase() === (bswVal === 'true' ? 'yes' : 'no');
+        var matchesOil = !oilVal || oil.toLowerCase() === (oilVal === 'true' ? 'yes' : 'no');
+        var matchesGlr = !glrVal || glr.toLowerCase() === (glrVal === 'true' ? 'yes' : 'no');
+        var matchesProd = !prodVal || prodMethod.includes(prodVal);
         
-        // Oil rate flag filter
-        if (showRow && oilValue) {
-            var oilCell = cells[3] ? cells[3].textContent.trim() : '';
-            var oilMatch = (oilValue === 'true' && oilCell === 'Yes') || (oilValue === 'false' && oilCell === 'No');
-            if (!oilMatch) showRow = false;
-        }
-        
-        // GLR flag filter
-        if (showRow && glrValue) {
-            var glrCell = cells[4] ? cells[4].textContent.trim() : '';
-            var glrMatch = (glrValue === 'true' && glrCell === 'Yes') || (glrValue === 'false' && glrCell === 'No');
-            if (!glrMatch) showRow = false;
-        }
-        
-        // Prod method filter
-        if (showRow && prodMethodValue) {
-            var prodCell = cells[9] ? cells[9].textContent.toLowerCase() : '';
-            if (prodCell.indexOf(prodMethodValue) === -1) showRow = false;
-        }
-        
-        row.style.display = showRow ? '' : 'none';
-    }
+        row.style.display = (matchesSearch && matchesBsw && matchesOil && matchesGlr && matchesProd) ? '' : 'none';
+    });
 }
+
+function clearFilters() {
+    document.getElementById('searchFilter').value = '';
+    document.getElementById('bswFilter').value = '';
+    document.getElementById('oilFilter').value = '';
+    document.getElementById('glrFilter').value = '';
+    document.getElementById('prodMethodFilter').value = '';
+    filterTable();
+}
+
+// Apply debounce to search input
+document.getElementById('searchFilter')?.addEventListener('keyup', debounce(filterTable, 300));
 </script>
 {% endblock %}

@@ -1,256 +1,769 @@
 {% extends "base/base.html" %}
+{% load static %}
 
-{% block title %}User Manual - Gas Lift{% endblock %}
+{% block title %}User Manual - Gas Lift Automation System{% endblock %}
+
+{% block breadcrumb %}
+<nav aria-label="breadcrumb">
+    <ol class="breadcrumb breadcrumb-custom">
+        <li class="breadcrumb-item"><a href="{% url 'dashboard' %}">Dashboard</a></li>
+        <li class="breadcrumb-item active" aria-current="page">User Manual</li>
+    </ol>
+</nav>
+{% endblock %}
 
 {% block content %}
-<div class="col-12">
+<div class="manual-container">
     <div class="card">
-        <div class="card-header">
-            <h3>Gas Lift Opportunity Automation System - User Manual</h3>
+        <div class="card-header d-flex justify-content-between align-items-center flex-wrap gap-2">
+            <h3><i class="bi bi-book"></i> User Manual – Gas Lift Opportunity Automation System</h3>
+            <a href="{% url 'download_manual_pdf' %}?inline=1" class="btn btn-light btn-sm" id="downloadPdfBtn" target="_blank" rel="noopener noreferrer">
+                <i class="bi bi-filetype-pdf"></i> View PDF
+            </a>
         </div>
-        <div class="card-body">
-            <div class="alert alert-info">
-                This manual is also available as a PDF: <a href="{% url 'dashboard' %}" class="alert-link">Download PDF</a>
+        <div class="card-body manual-content">
+            <!-- Quick Navigation -->
+            <div class="manual-toc mb-4 p-3 bg-light rounded-3">
+                <h5 class="fw-bold mb-3"><i class="bi bi-list-ul"></i> Table of Contents</h5>
+                <div class="row g-2">
+                    <div class="col-md-6"><a href="#introduction" class="toc-link">1. Introduction</a></div>
+                    <div class="col-md-6"><a href="#getting-started" class="toc-link">2. Getting Started</a></div>
+                    <div class="col-md-6"><a href="#step-upload" class="toc-link">3. Step 1: Upload Data</a></div>
+                    <div class="col-md-6"><a href="#step-mapping" class="toc-link">4. Step 2: Column Mapping</a></div>
+                    <div class="col-md-6"><a href="#step-preview" class="toc-link">5. Step 3: Data Preview</a></div>
+                    <div class="col-md-6"><a href="#step-weights" class="toc-link">6. Step 4: Adjust Weights</a></div>
+                    <div class="col-md-6"><a href="#step-trends" class="toc-link">7. Step 5: Well Trends</a></div>
+                    <div class="col-md-6"><a href="#step-results" class="toc-link">8. Step 6-7: Run & View Results</a></div>
+                    <div class="col-md-6"><a href="#step-export" class="toc-link">9. Step 8: Export Results</a></div>
+                    <div class="col-md-6"><a href="#advanced-features" class="toc-link">10. Advanced Features</a></div>
+                    <div class="col-md-6"><a href="#faq" class="toc-link">11. FAQ & Troubleshooting</a></div>
+                </div>
             </div>
 
-            <h4>Table of Contents</h4>
-            <ol>
-                <li><a href="#introduction">Introduction</a></li>
-                <li><a href="#how-it-works">How the System Works (Overview)</a></li>
-                <li><a href="#accessing">Accessing the System</a></li>
-                <li><a href="#step-by-step">Step by Step User Guide</a></li>
-                <li><a href="#logic">Understanding the Behind the Scenes Logic</a></li>
-                <li><a href="#troubleshooting">Troubleshooting Guide</a></li>
-                <li><a href="#faq">Frequently Asked Questions</a></li>
-                <li><a href="#glossary">Glossary</a></li>
-                <li><a href="#next-steps">Next Steps</a></li>
-                <li><a href="#contact">Contact & Support</a></li>
-            </ol>
+            <!-- 1. Introduction -->
+            <section id="introduction" class="manual-section">
+                <h4 class="section-title"><span class="section-number">1</span> Introduction</h4>
+                <div class="section-body">
+                    <p>The <strong>Gas Lift Opportunity Automation System</strong> is a web-based application designed to help petroleum engineers and production technologists identify wells that are good candidates for gas lift installation. By analyzing historical well test data, the system applies statistical trend analysis and multi-criteria scoring to rank wells based on their potential for gas lift optimization.</p>
+                    
+                    <h5 class="mt-3">Key Features</h5>
+                    <div class="row g-2 mb-3">
+                        <div class="col-md-6">
+                            <div class="feature-card p-3 border rounded-3 h-100">
+                                <i class="bi bi-cloud-arrow-up text-primary fs-4"></i>
+                                <h6 class="mt-2">Data Upload</h6>
+                                <p class="mb-0 small">Upload CSV or Excel well test data with automatic column detection</p>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="feature-card p-3 border rounded-3 h-100">
+                                <i class="bi bi-arrow-left-right text-primary fs-4"></i>
+                                <h6 class="mt-2">Column Mapping</h6>
+                                <p class="mb-0 small">Map your file columns to required system fields</p>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="feature-card p-3 border rounded-3 h-100">
+                                <i class="bi bi-graph-up text-primary fs-4"></i>
+                                <h6 class="mt-2">Trend Analysis</h6>
+                                <p class="mb-0 small">Statistical trend detection using Kendall's tau and Sen's slope</p>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="feature-card p-3 border rounded-3 h-100">
+                                <i class="bi bi-trophy text-primary fs-4"></i>
+                                <h6 class="mt-2">Candidate Ranking</h6>
+                                <p class="mb-0 small">Multi-parameter weighted scoring with gas allocation optimization</p>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="feature-card p-3 border rounded-3 h-100">
+                                <i class="bi bi-droplet text-primary fs-4"></i>
+                                <h6 class="mt-2">Liquid Loading Diagnostics</h6>
+                                <p class="mb-0 small">PVT-based critical velocity analysis for liquid loading detection</p>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="feature-card p-3 border rounded-3 h-100">
+                                <i class="bi bi-file-earmark-spreadsheet text-primary fs-4"></i>
+                                <h6 class="mt-2">Export Options</h6>
+                                <p class="mb-0 small">Export results to Excel, CSV, or PDF executive summary</p>
+                            </div>
+                        </div>
+                    </div>
 
-            <hr>
+                    <h5 class="mt-3">Workflow Overview</h5>
+                    <div class="step-indicator mb-3">
+                        <div class="step completed"><div class="step-circle">1</div><div class="step-label">Upload</div></div>
+                        <div class="step completed"><div class="step-circle">2</div><div class="step-label">Mapping</div></div>
+                        <div class="step completed"><div class="step-circle">3</div><div class="step-label">Preview</div></div>
+                        <div class="step completed"><div class="step-circle">4</div><div class="step-label">Weights</div></div>
+                        <div class="step completed"><div class="step-circle">5</div><div class="step-label">Trends</div></div>
+                        <div class="step completed"><div class="step-circle">6</div><div class="step-label">Results</div></div>
+                    </div>
+                    <p>The typical workflow consists of <strong>6 main steps</strong> from data upload to ranked results, with optional advanced analysis options available along the way.</p>
+                </div>
+            </section>
 
-            <h4 id="introduction">1. Introduction</h4>
-            <p>Welcome to the <strong>Gas Lift Opportunity Automation System</strong> – a smart web tool that helps you find which wells are good candidates for gas lift installation.</p>
+            <!-- 2. Getting Started -->
+            <section id="getting-started" class="manual-section">
+                <h4 class="section-title"><span class="section-number">2</span> Getting Started</h4>
+                <div class="section-body">
+                    <h5>System Requirements</h5>
+                    <ul>
+                        <li>A modern web browser (Chrome 90+, Firefox 88+, Edge 90+, Safari 14+)</li>
+                        <li>An active internet connection</li>
+                        <li>A registered user account</li>
+                    </ul>
 
-            <h5>What is Gas Lift?</h5>
-            <p>Gas lift is a method used in oil production to help wells produce more oil. Think of it like adding a straw to a drink – it helps push the oil to the surface when the well's natural pressure isn't strong enough anymore.</p>
+                    <h5 class="mt-3">Creating an Account</h5>
+                    <ol>
+                        <li>Navigate to the login page and click <strong>"Sign Up"</strong>.</li>
+                        <li>Enter your <strong>username, email address, and password</strong>.</li>
+                        <li>Click <strong>"Create Account"</strong> to register.</li>
+                        <li>You will be automatically logged in and redirected to the Dashboard.</li>
+                    </ol>
+                    <div class="alert alert-info">
+                        <i class="bi bi-info-circle"></i> Passwords must be at least 8 characters long and contain a mix of letters and numbers.
+                    </div>
 
-            <h5>Why This System?</h5>
-            <p>In many oilfields, engineers manually review hundreds of wells to decide which ones need gas lift. This is time consuming and can be inconsistent. This system automates that process – it analyses well test data, identifies wells with declining trends, and ranks them so you know exactly which wells to focus on.</p>
+                    <h5 class="mt-3">Dashboard Overview</h5>
+                    <p>After logging in, you will see the Dashboard with four summary statistics:</p>
+                    <ul>
+                        <li><strong>Total Uploads</strong> — Number of files you've uploaded</li>
+                        <li><strong>Total Analyses</strong> — Number of analysis sessions you've run</li>
+                        <li><strong>Wells Analyzed</strong> — Total well-trend analyses completed</li>
+                        <li><strong>Top Candidates</strong> — Wells ranked in the top 10 across all analyses</li>
+                    </ul>
+                    <p>The sidebar provides quick navigation to all major sections of the application.</p>
+                </div>
+            </section>
 
-            <hr>
+            <!-- 3. Step 1: Upload -->
+            <section id="step-upload" class="manual-section">
+                <h4 class="section-title"><span class="section-number">3</span> Step 1: Upload Well Test Data</h4>
+                <div class="section-body">
+                    <p>The upload page is the starting point for any analysis workflow.</p>
 
-            <h4 id="how-it-works">2. How the System Works (Overview)</h4>
-            <div class="table-responsive">
-                <table class="table table-bordered">
-                    <thead>
-                        <tr><th>Step</th><th>What You Do</th><th>What the System Does</th></tr>
-                    </thead>
-                    <tbody>
-                        <tr><td>1</td><td>Upload well test data (Excel/CSV file)</td><td>Reads and stores your data</td></tr>
-                        <tr><td>2</td><td>Map your columns to the system's required fields</td><td>Matches your data to our analysis requirements</td></tr>
-                        <tr><td>3</td><td>Preview your data to check it's correct</td><td>Shows you a sample of what you uploaded</td></tr>
-                        <tr><td>4</td><td>Adjust weighting sliders (optional)</td><td>Controls how much each parameter matters in ranking</td></tr>
-                        <tr><td>5</td><td>View individual well trends</td><td>Shows you charts for each well's performance</td></tr>
-                        <tr><td>6</td><td>Click "Run Analysis"</td><td>Calculates trends and ranks all wells</td></tr>
-                        <tr><td>7</td><td>View the Results page</td><td>See ranked candidate wells with explanations</td></tr>
-                        <tr><td>8</td><td>Export results (optional)</td><td>Download reports for sharing</td></tr>
-                    </tbody>
-                </table>
-            </div>
+                    <h5>Supported File Formats</h5>
+                    <table class="table table-sm table-bordered">
+                        <thead><tr><th>Format</th><th>Extension</th><th>Max Size</th></tr></thead>
+                        <tbody>
+                            <tr><td>Excel</td><td><code>.xlsx</code></td><td>100 MB</td></tr>
+                            <tr><td>CSV</td><td><code>.csv</code></td><td>100 MB</td></tr>
+                        </tbody>
+                    </table>
 
-            <hr>
+                    <h5 class="mt-3">Required Columns</h5>
+                    <p>Your data file should include the following columns (names can vary — they will be mapped in Step 2):</p>
+                    <table class="table table-sm table-bordered">
+                        <thead><tr><th>Field</th><th>Description</th><th>Example</th></tr></thead>
+                        <tbody>
+                            <tr><td>Well</td><td>Well identifier or name</td><td><code>WELL-001</code></td></tr>
+                            <tr><td>Date</td><td>Test date</td><td><code>2024-01-15</code></td></tr>
+                            <tr><td>BS&W (%)</td><td>Base sediment & water percentage</td><td><code>12.5</code></td></tr>
+                            <tr><td>Net Oil (bopd)</td><td>Net oil production rate</td><td><code>450</code></td></tr>
+                            <tr><td>Form.GLR (scf/bbl)</td><td>Formation gas-liquid ratio</td><td><code>850</code></td></tr>
+                            <tr><td>Prod Method</td><td>Production method (e.g., flowing, pump)</td><td><code>Flowing</code></td></tr>
+                            <tr><td>Test Status</td><td>Status of the test</td><td><code>Normal</code></td></tr>
+                            <tr><td>Tubing Pressure (psi)</td><td>Tubing head pressure</td><td><code>320</code></td></tr>
+                            <tr><td>Flow Line Pressure (psi)</td><td>Flow line pressure</td><td><code>150</code></td></tr>
+                            <tr><td>Well Choke Size</td><td>Choke size (inches or 64ths)</td><td><code>24/64</code></td></tr>
+                        </tbody>
+                    </table>
 
-            <h4 id="accessing">3. Accessing the System</h4>
-            <h5>Login</h5>
-            <ul>
-                <li>Open your web browser and go to the system URL (provided by your administrator).</li>
-                <li>Enter your username and password.</li>
-                <li>Click Login.</li>
-            </ul>
+                    <div class="alert alert-warning">
+                        <i class="bi bi-exclamation-triangle"></i> <strong>Tip:</strong> Each well should have at least <strong>5 data points</strong> with valid test statuses for reliable trend analysis. Wells with fewer points will be skipped.
+                    </div>
 
-            <h5>Dashboard</h5>
-            <p>After login, you'll see the main dashboard. From here, you can navigate to:</p>
-            <ul>
-                <li><strong>Upload Data</strong> – to start a new analysis</li>
-                <li><strong>My Analyses</strong> – to view previous analysis sessions</li>
-                <li><strong>Results</strong> – to see ranked candidates</li>
-            </ul>
+                    <h5 class="mt-3">How to Upload</h5>
+                    <ol>
+                        <li>Click <strong>"Choose File"</strong> or drag-and-drop your file onto the upload zone.</li>
+                        <li>Select the file format (Excel or CSV).</li>
+                        <li>Click <strong>"Upload"</strong> to submit your file.</li>
+                        <li>You will be redirected to the Column Mapping page.</li>
+                    </ol>
+                </div>
+            </section>
 
-            <hr>
+            <!-- 4. Step 2: Mapping -->
+            <section id="step-mapping" class="manual-section">
+                <h4 class="section-title"><span class="section-number">4</span> Step 2: Column Mapping</h4>
+                <div class="section-body">
+                    <p>The column mapping page allows you to match the columns in your uploaded file to the system's required fields. This ensures the application correctly reads and interprets your data.</p>
 
-            <h4 id="step-by-step">4. Step by Step User Guide</h4>
+                    <h5>How to Map Columns</h5>
+                    <ol>
+                        <li>For each required field on the left, select the matching column from your file on the right.</li>
+                        <li>If a column name in your file already matches a required field, it will be pre-selected automatically.</li>
+                        <li>Click <strong>"Validate & Save Mapping"</strong> to confirm.</li>
+                        <li>The system will validate that all required fields are mapped before proceeding.</li>
+                    </ol>
 
-            <h5>Step 1: Upload Your Well Test Data</h5>
-            <p><strong>File Requirements:</strong></p>
-            <ul>
-                <li><strong>File format:</strong> Excel (.xlsx) or CSV (.csv)</li>
-                <li><strong>Size limit:</strong> Up to 100 MB (contact your admin if you need larger files)</li>
-            </ul>
-            <p><strong>Required Columns:</strong></p>
-            <div class="table-responsive">
-                <table class="table table-bordered table-sm">
-                    <thead><tr><th>Required Parameter</th><th>What It Measures</th><th>Example Column Names</th></tr></thead>
-                    <tbody>
-                        <tr><td>Well</td><td>Well name or ID</td><td>Well, WellName, Well_ID</td></tr>
-                        <tr><td>Date</td><td>Test date</td><td>Date, TestDate, DateTime</td></tr>
-                        <tr><td>BS&W (%)</td><td>Basic Sediment & Water – percentage of water</td><td>BS&W, BSW, WaterCut, WC%</td></tr>
-                        <tr><td>Net Oil (bopd)</td><td>Oil production rate in barrels per day</td><td>NetOil, OilRate, Oil_bopd</td></tr>
-                        <tr><td>Form.GLR (scf/bbl)</td><td>Gas to liquid ratio</td><td>GLR, GasLiquidRatio, FormGLR</td></tr>
-                        <tr><td>Prod Method</td><td>How the well is currently producing</td><td>ProductionMethod, ProdMethod</td></tr>
-                        <tr><td>Test Status</td><td>Whether the test is valid</td><td>Status, TestStatus</td></tr>
-                        <tr><td>Tubing Pressure (psi)</td><td>Pressure inside the production tubing</td><td>TubingPressure, THP, TP</td></tr>
-                        <tr><td>Flow Line Pressure (psi)</td><td>Pressure in the flowline</td><td>FlowLinePressure, FLP, FP</td></tr>
-                        <tr><td>Well Choke Size</td><td>Choke opening size</td><td>ChokeSize, Choke, WellChoke</td></tr>
-                    </tbody>
-                </table>
-            </div>
+                    <div class="alert alert-info">
+                        <i class="bi bi-info-circle"></i> <strong>Note:</strong> The "Well" and "Date" fields are mandatory. Without them, the analysis cannot proceed.
+                    </div>
+                </div>
+            </section>
 
-            <h5>Step 2: Map Your Columns</h5>
-            <p>After uploading, the system shows the Column Mapping page. This is where you tell the system which column in your file corresponds to each required parameter.</p>
-            <ul>
-                <li>For each required parameter, you'll see a dropdown menu.</li>
-                <li>Select the column name from your file that matches.</li>
-                <li>The system will try to auto match columns based on common names – check that it's correct.</li>
-                <li>If a column is missing, the system will highlight it in red.</li>
-            </ul>
+            <!-- 5. Step 3: Preview -->
+            <section id="step-preview" class="manual-section">
+                <h4 class="section-title"><span class="section-number">5</span> Step 3: Data Preview</h4>
+                <div class="section-body">
+                    <p>The preview page displays a sample of your data (first 50 rows) alongside a data quality report.</p>
 
-            <h5>Step 3: Preview Your Data</h5>
-            <p>Once columns are mapped, you can preview your uploaded data to make sure everything looks right.</p>
+                    <h5>Data Quality Report</h5>
+                    <ul>
+                        <li><strong>Total Rows:</strong> Number of rows in your file</li>
+                        <li><strong>Columns Detected:</strong> All columns found in the file</li>
+                        <li><strong>Missing Values:</strong> Percentage of missing values for each required field</li>
+                        <li><strong>Unique Wells:</strong> Number of unique well identifiers found</li>
+                    </ul>
 
-            <h5>Step 4: Adjust Parameter Weights (Optional)</h5>
-            <p>The system analyzes four key parameters: BS&W (water percentage), Oil Rate (oil production), GLR (gas liquid ratio), and Tubing Pressure (pressure in the well).</p>
-            <div class="table-responsive">
-                <table class="table table-bordered table-sm">
-                    <thead><tr><th>Weight</th><th>Meaning</th></tr></thead>
-                    <tbody>
-                        <tr><td>0</td><td>This parameter is ignored</td></tr>
-                        <tr><td>0.5</td><td>Somewhat important</td></tr>
-                        <tr><td>1.0</td><td>Normally important (default)</td></tr>
-                        <tr><td>2.0</td><td>Very important – double the influence</td></tr>
-                    </tbody>
-                </table>
-            </div>
+                    <h5 class="mt-3">Actions</h5>
+                    <ul>
+                        <li><strong>Proceed to Weights</strong> — Continue to configure analysis parameters</li>
+                        <li><strong>Re-upload</strong> — Go back and upload a different file</li>
+                    </ul>
 
-            <h5>Step 5: View Individual Well Trends</h5>
-            <p>Before running the full analysis, you can explore how each well is performing by viewing charts of BS&W, Oil Rate, GLR, and Tubing Pressure over time.</p>
+                    <div class="alert alert-warning">
+                        <i class="bi bi-exclamation-triangle"></i> <strong>Tip:</strong> Review the data quality report carefully. High percentages of missing values in key fields may affect analysis accuracy.
+                    </div>
+                </div>
+            </section>
 
-            <h5>Step 6: Run the Analysis</h5>
-            <p>Click the "Run Analysis" button. The system will check data quality, calculate trends, apply your weights, and rank all wells.</p>
+            <!-- 6. Step 4: Weights -->
+            <section id="step-weights" class="manual-section">
+                <h4 class="section-title"><span class="section-number">6</span> Step 4: Adjust Weights & Parameters</h4>
+                <div class="section-body">
+                    <p>This page lets you configure the scoring parameters that determine how wells are ranked. Each parameter can be weighted according to its importance in your gas lift candidate selection criteria.</p>
 
-            <h5>Step 7: View the Results</h5>
-            <div class="table-responsive">
-                <table class="table table-bordered table-sm">
-                    <thead><tr><th>Column</th><th>What It Means</th></tr></thead>
-                    <tbody>
-                        <tr><td>Well</td><td>Well name</td></tr>
-                        <tr><td>UID</td><td>Unique identifier for the well</td></tr>
-                        <tr><td>BSW_Flag</td><td>Yes = BSW is trending upward (bad)</td></tr>
-                        <tr><td>OilRate_Flag</td><td>Yes = Oil rate is trending downward (bad)</td></tr>
-                        <tr><td>GLR_Flag</td><td>Yes = GLR is trending downward (bad)</td></tr>
-                        <tr><td>Rank</td><td>Ranking from 1 (best candidate) down</td></tr>
-                        <tr><td>Summary_Comment</td><td>Plain English explanation</td></tr>
-                    </tbody>
-                </table>
-            </div>
+                    <h5>Weight Parameters</h5>
+                    <table class="table table-sm table-bordered">
+                        <thead><tr><th>Parameter</th><th>Default Weight</th><th>Description</th></tr></thead>
+                        <tbody>
+                            <tr><td>BS&W (%)</td><td>100</td><td>Weight for water cut increase trends</td></tr>
+                            <tr><td>Oil Rate (bopd)</td><td>100</td><td>Weight for oil rate decline trends</td></tr>
+                            <tr><td>GLR (scf/bbl)</td><td>100</td><td>Weight for gas-liquid ratio decline</td></tr>
+                            <tr><td>Tubing Pressure (psi)</td><td>50</td><td>Weight for tubing pressure decline</td></tr>
+                            <tr><td>Economic Oil Limit</td><td>50 bopd</td><td>Oil rate threshold for economic limit calculation</td></tr>
+                        </tbody>
+                    </table>
 
-            <h5>Step 8: Export Results</h5>
-            <p>You can download your results as Excel or CSV files for reporting or further analysis.</p>
+                    <h5 class="mt-3">Advanced Options</h5>
+                    <ul>
+                        <li><strong>Gas Constraint (MMscf/d)</strong> — Available lift gas volume for knapsack optimization. If set, the system will allocate gas optimally across candidates.</li>
+                        <li><strong>Base Choke Size</strong> — Choke size for normalization across all wells</li>
+                        <li><strong>Outlier Detection</strong> — Method (IQR, Z-score) and threshold for outlier removal</li>
+                    </ul>
 
-            <hr>
+                    <h5 class="mt-3">Optional: Configure PVT Properties</h5>
+                    <p>For liquid loading diagnostics, you can configure fluid properties:</p>
+                    <ul>
+                        <li><strong>API Gravity</strong> — Oil API gravity (default: 35)</li>
+                        <li><strong>Gas Specific Gravity</strong> — Relative to air (default: 0.65)</li>
+                        <li><strong>Water Salinity</strong> — In ppm (default: 20,000)</li>
+                        <li><strong>Reservoir Temperature</strong> — In °F (default: 180)</li>
+                        <li><strong>Tubing ID</strong> — Tubing inside diameter in inches (default: 2.875)</li>
+                    </ul>
 
-            <h4 id="logic">5. Understanding the Behind the Scenes Logic</h4>
-            <p>The system uses two statistical tools:</p>
-            <ul>
-                <li><strong>Mann Kendall Trend Test</strong> – checks if there's a real, consistent upward or downward pattern.</li>
-                <li><strong>Sen's Slope Estimator</strong> – calculates how fast the change is happening (mild, moderate, or aggressive).</li>
-            </ul>
-            <p><strong>How the Ranking Works:</strong></p>
-            <ol>
-                <li>The system calculates a "trend score" = (trend direction) × (magnitude) for each parameter.</li>
-                <li>It multiplies each score by your weight for that parameter.</li>
-                <li>It adds all scores together to get a total Candidate Score.</li>
-                <li>Higher score = higher rank (1, 2, 3...).</li>
-            </ol>
+                    <h5 class="mt-3">Optional: Upload Completion Data</h5>
+                    <p>For feasibility checking, you can upload completion data including mandrel depths, packer depth, and available compression pressure.</p>
 
-            <hr>
+                    <div class="alert alert-success">
+                        <i class="bi bi-check-circle"></i> <strong>Tip:</strong> Higher weights (up to 100) give more influence to a parameter in the final candidate score. Adjust based on your field's specific gas lift candidate criteria.
+                    </div>
+                </div>
+            </section>
 
-            <h4 id="troubleshooting">6. Troubleshooting Guide</h4>
-            <dl>
-                <dt>Upload failed – File format not supported</dt>
-                <dd>Make sure your file is .xlsx or .csv format.</dd>
-                
-                <dt>Column mapping error – Required column not found</dt>
-                <dd>Check that your file has all 10 required columns and map them correctly.</dd>
-                
-                <dt>No wells found – data is empty</dt>
-                <dd>Ensure your data has more than just a header row.</dd>
-                
-                <dt>Analysis runs but no wells are ranked</dt>
-                <dd>Your wells may be stable with no significant trends, or your data window is too short.</dd>
-                
-                <dt>Date format error</dt>
-                <dd>The system expects standard date formats like YYYY-MM-DD.</dd>
-                
-                <dt>The system is slow</dt>
-                <dd>If you have more than 10,000 rows, consider reducing your dataset.</dd>
-            </dl>
+            <!-- 7. Step 5: Trends -->
+            <section id="step-trends" class="manual-section">
+                <h4 class="section-title"><span class="section-number">7</span> Step 5: Well Trends</h4>
+                <div class="section-body">
+                    <p>The Well Trends page provides an interactive view of individual well performance over time. You can inspect each well's data trends before running the full analysis.</p>
 
-            <hr>
+                    <h5>Features</h5>
+                    <ul>
+                        <li><strong>Well Selector</strong> — Choose a well from the dropdown to view its data</li>
+                        <li><strong>Interactive Charts</strong> — Four synchronized charts showing:
+                            <ul>
+                                <li>BS&W (%) over time</li>
+                                <li>Net Oil (bopd) over time</li>
+                                <li>Form.GLR (scf/bbl) over time</li>
+                                <li>Tubing Pressure (psi) over time</li>
+                            </ul>
+                        </li>
+                        <li><strong>Data Point Details</strong> — Hover over any point to see exact values</li>
+                        <li><strong>Outlier Markers</strong> — Rejected data points are visually marked</li>
+                        <li><strong>Data Quality Score</strong> — Displays the percentage of valid data</li>
+                    </ul>
 
-            <h4 id="faq">7. Frequently Asked Questions (FAQ)</h4>
-            <dl>
-                <dt>Do I need to be a statistician to use this?</dt>
-                <dd>Absolutely not. The system does all the math for you.</dd>
-                
-                <dt>Can I trust the system's recommendations?</dt>
-                <dd>Yes – the system follows the same logic that experienced engineers use.</dd>
-                
-                <dt>Can I analyze multiple fields at once?</dt>
-                <dd>Yes, as long as your data file includes all wells from different fields.</dd>
-                
-                <dt>How often should I run the analysis?</dt>
-                <dd>We recommend running it whenever you have new well test data (e.g., monthly, quarterly).</dd>
-                
-                <dt>Is my data safe?</dt>
-                <dd>Yes – all data is encrypted and stored securely.</dd>
-            </dl>
+                    <h5 class="mt-3">Running the Analysis</h5>
+                    <p>Once you've reviewed the trends, click <strong>"Run Analysis"</strong> to start the automated candidate scoring. The system will:</p>
+                    <ol>
+                        <li>Apply Sen's slope estimation for trend direction and magnitude</li>
+                        <li>Calculate Kendall's tau-b correlation for statistical significance</li>
+                        <li>Compute weighted candidate scores based on your configured parameters</li>
+                        <li>Rank wells from best to least candidate potential</li>
+                        <li>Optionally run gas knapsack optimization if gas constraint is set</li>
+                    </ol>
 
-            <hr>
+                    <div class="alert alert-info">
+                        <i class="bi bi-info-circle"></i> <strong>Note:</strong> Analysis time depends on the number of wells and data points. Progress is shown via the loading overlay.
+                    </div>
+                </div>
+            </section>
 
-            <h4 id="glossary">8. Glossary</h4>
-            <div class="table-responsive">
-                <table class="table table-bordered table-sm">
-                    <thead><tr><th>Term</th><th>Plain English Definition</th></tr></thead>
-                    <tbody>
-                        <tr><td>BS&W</td><td>Basic Sediment & Water – the percentage of water mixed with the oil.</td></tr>
-                        <tr><td>bopd</td><td>Barrels of Oil Per Day.</td></tr>
-                        <tr><td>GLR</td><td>Gas Liquid Ratio – amount of gas per barrel of fluid.</td></tr>
-                        <tr><td>Tubing Pressure</td><td>Pressure inside the pipe that brings oil up.</td></tr>
-                        <tr><td>Trend</td><td>A consistent pattern over time – up, down, or flat.</td></tr>
-                        <tr><td>Candidate</td><td>A well that might benefit from gas lift.</td></tr>
-                        <tr><td>Rank</td><td>Your well's position in the list – #1 is the most urgent.</td></tr>
-                        <tr><td>Weight</td><td>How much importance we give to a parameter in the ranking.</td></tr>
-                    </tbody>
-                </table>
-            </div>
+            <!-- 8. Results -->
+            <section id="step-results" class="manual-section">
+                <h4 class="section-title"><span class="section-number">8</span> Step 6-7: View Results</h4>
+                <div class="section-body">
+                    <p>The Results page displays the ranked list of candidate wells based on the analysis.</p>
 
-            <hr>
+                    <h5>Results Table</h5>
+                    <p>The main table shows each well with:</p>
+                    <ul>
+                        <li><strong>Rank</strong> — Position in the candidate priority list</li>
+                        <li><strong>Well ID</strong> — Well name/identifier</li>
+                        <li><strong>Candidate Score</strong> — Composite score (higher is better)</li>
+                        <li><strong>BSW Flag</strong> — Red if BS&W trend is increasing (bad)</li>
+                        <li><strong>Oil Rate Flag</strong> — Red if oil rate is declining (bad = good gas lift candidate)</li>
+                        <li><strong>GLR Flag</strong> — Red if GLR is declining</li>
+                        <li><strong>Trend Details</strong> — Direction and magnitude for each parameter</li>
+                        <li><strong>Liquid Loading</strong> — Flag if liquid loading is detected</li>
+                        <li><strong>Completion Feasibility</strong> — Green/yellow/red status</li>
+                        <li><strong>Summary Comment</strong> — Auto-generated description of the well's situation</li>
+                    </ul>
 
-            <h4 id="next-steps">9. Next Steps After Using the System</h4>
-            <ol>
-                <li>Review the top 5-10 wells – these are your highest priority.</li>
-                <li>Double check with field data – visit the well site if possible.</li>
-                <li>Build a detailed well model for the top candidates to confirm gas lift benefits.</li>
-                <li>Create a workover/intervention plan – schedule the gas lift installation.</li>
-                <li>Monitor results – after gas lift is installed, run the analysis again to see improvement.</li>
-            </ol>
+                    <h5 class="mt-3">Filtering & Sorting</h5>
+                    <ul>
+                        <li>Use the <strong>filter buttons</strong> (BSW Flag, Oil Flag, GLR Flag) to focus on specific well categories</li>
+                        <li>Use the <strong>search bar</strong> to find wells by name</li>
+                        <li>Filter by <strong>production method</strong></li>
+                    </ul>
 
-            <hr>
+                    <h5 class="mt-3">Comparing Analyses</h5>
+                    <p>The <strong>Compare Analyses</strong> feature allows you to select two analysis sessions and view side-by-side ranking changes, including:</p>
+                    <ul>
+                        <li>Rank improvements or deteriorations</li>
+                        <li>Score changes</li>
+                        <li>New wells appearing in the results</li>
+                    </ul>
+                </div>
+            </section>
 
-            <h4 id="contact">10. Contact & Support</h4>
-            <p>For support, please visit our <a href="{% url 'contact' %}">Contact & Support page</a>.</p>
+            <!-- 9. Export -->
+            <section id="step-export" class="manual-section">
+                <h4 class="section-title"><span class="section-number">9</span> Step 8: Export Results</h4>
+                <div class="section-body">
+                    <p>Export your analysis results in multiple formats for further analysis, reporting, or presentation.</p>
+
+                    <h5>Export Options</h5>
+                    <table class="table table-sm table-bordered">
+                        <thead><tr><th>Format</th><th>Content</th><th>Use Case</th></tr></thead>
+                        <tbody>
+                            <tr><td>Excel (.xlsx)</td><td>Full results with formatting</td><td>Detailed analysis, pivot tables</td></tr>
+                            <tr><td>CSV (.csv)</td><td>Raw data without formatting</td><td>Import into other software</td></tr>
+                            <tr><td>PDF Executive Summary</td><td>Formatted report with charts</td><td>Management presentations</td></tr>
+                        </tbody>
+                    </table>
+
+                    <h5 class="mt-3">Excel Export Details</h5>
+                    <p>The Excel export includes the following columns:</p>
+                    <div class="row">
+                        <div class="col-md-6">
+                            <ul>
+                                <li>Rank, Well, UID</li>
+                                <li>BSW_Flag, OilRate_Flag, GLR_Flag</li>
+                                <li>BSW Trend, Oil Rate Trend, GLR Trend</li>
+                                <li>Candidate Score</li>
+                                <li>Prod Method, Test Status</li>
+                            </ul>
+                        </div>
+                        <div class="col-md-6">
+                            <ul>
+                                <li>Flow Line Pressure, Well Choke Size</li>
+                                <li>Data Quality Score, Outliers Removed</li>
+                                <li>Choke Normalized, Liquid Loading Flag</li>
+                                <li>Critical Velocity, Days to Economic Limit</li>
+                                <li>Recommended Gas, Completion Feasibility</li>
+                                <li>Summary Comment</li>
+                            </ul>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- 10. Advanced Features -->
+            <section id="advanced-features" class="manual-section">
+                <h4 class="section-title"><span class="section-number">10</span> Advanced Features</h4>
+                <div class="section-body">
+                    <h5>Sensitivity Analysis (Monte Carlo)</h5>
+                    <p>The sensitivity analysis uses Monte Carlo simulation to assess the robustness of well rankings under uncertainty. It runs <strong>1,000 iterations</strong> with random perturbations to input parameters and measures rank stability.</p>
+                    <ul>
+                        <li><strong>Rank Variance</strong> — Lower variance means more stable ranking</li>
+                        <li><strong>Confidence Classification</strong> — Wells are classified as High, Medium, or Low confidence</li>
+                        <li>Requires at least <strong>2 wells</strong> for meaningful results</li>
+                    </ul>
+
+                    <h5 class="mt-3">Liquid Loading Diagnostics</h5>
+                    <p>When PVT properties are configured, the system calculates:</p>
+                    <ul>
+                        <li><strong>Critical Gas Velocity</strong> — Minimum velocity needed to lift liquids (ft/s)</li>
+                        <li><strong>Actual Gas Velocity</strong> — Current estimated gas velocity</li>
+                        <li><strong>Liquid Loading Flag</strong> — Set when actual velocity falls below critical</li>
+                    </ul>
+
+                    <h5 class="mt-3">Gas Allocation Optimization (Knapsack)</h5>
+                    <p>When a gas constraint is specified, the system applies a greedy knapsack algorithm to allocate available lift gas across candidates to maximize incremental oil gain. Wells are ranked by efficiency (candidate score per unit gas).</p>
+
+                    <h5 class="mt-3">Economic Limit Forecasting</h5>
+                    <p>Using the economic oil rate limit and Sen's slope, the system estimates:</p>
+                    <ul>
+                        <li><strong>Days to Economic Limit</strong> — How long before the well becomes uneconomic</li>
+                        <li><strong>Projected Oil Rate (6 months)</strong> — Forecasted rate based on current decline</li>
+                    </ul>
+
+                    <h5 class="mt-3">Completion Feasibility</h5>
+                    <p>With completion data uploaded, the system checks whether available compression pressure is sufficient for gas lift at the deepest mandrel, considering hydrostatic and friction losses.</p>
+                </div>
+            </section>
+
+            <!-- 11. FAQ -->
+            <section id="faq" class="manual-section">
+                <h4 class="section-title"><span class="section-number">11</span> FAQ & Troubleshooting</h4>
+                <div class="section-body">
+                    <div class="accordion" id="faqAccordion">
+                        <div class="accordion-item">
+                            <h2 class="accordion-header">
+                                <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#faq1">
+                                    <strong>Q:</strong> Why is my well not appearing in the results?
+                                </button>
+                            </h2>
+                            <div id="faq1" class="accordion-collapse collapse" data-bs-parent="#faqAccordion">
+                                <div class="accordion-body">
+                                    Wells need at least <strong>5 data points</strong> with valid test statuses. Check that your data has enough records for each well and that the "Test Status" column is correctly mapped. Wells with invalid test statuses (e.g., "shut-in", "inactive") are filtered out.
+                                </div>
+                            </div>
+                        </div>
+                        <div class="accordion-item">
+                            <h2 class="accordion-header">
+                                <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#faq2">
+                                    <strong>Q:</strong> How are candidate scores calculated?
+                                </button>
+                            </h2>
+                            <div id="faq2" class="accordion-collapse collapse" data-bs-parent="#faqAccordion">
+                                <div class="accordion-body">
+                                    Scores are calculated using a weighted combination of four trend parameters: BS&W, Oil Rate, GLR, and Tubing Pressure. Each parameter's trend direction, statistical significance (p-value), and magnitude are combined with user-configurable weights. Wells showing declining oil rate, increasing BSW, or declining GLR receive higher scores as they represent better gas lift candidates.
+                                </div>
+                            </div>
+                        </div>
+                        <div class="accordion-item">
+                            <h2 class="accordion-header">
+                                <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#faq3">
+                                    <strong>Q:</strong> What file formats are supported?
+                                </button>
+                            </h2>
+                            <div id="faq3" class="accordion-collapse collapse" data-bs-parent="#faqAccordion">
+                                <div class="accordion-body">
+                                    The system supports <strong>Excel (.xlsx)</strong> and <strong>CSV (.csv)</strong> files. Maximum file size is 100 MB. For Excel files, only the first sheet is read. Ensure your data is in tabular format with column headers in the first row.
+                                </div>
+                            </div>
+                        </div>
+                        <div class="accordion-item">
+                            <h2 class="accordion-header">
+                                <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#faq4">
+                                    <strong>Q:</strong> Can I re-run an analysis with different weights?
+                                </button>
+                            </h2>
+                            <div id="faq4" class="accordion-collapse collapse" data-bs-parent="#faqAccordion">
+                                <div class="accordion-body">
+                                    Yes. Navigate to <strong>"My Analyses"</strong> in the sidebar, find your analysis session, and you can create a new analysis from the same upload data with adjusted weights. You can also use the <strong>"Compare Analyses"</strong> feature to see how weight changes affect rankings.
+                                </div>
+                            </div>
+                        </div>
+                        <div class="accordion-item">
+                            <h2 class="accordion-header">
+                                <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#faq5">
+                                    <strong>Q:</strong> What does the "Data Quality Score" mean?
+                                </button>
+                            </h2>
+                            <div id="faq5" class="accordion-collapse collapse" data-bs-parent="#faqAccordion">
+                                <div class="accordion-body">
+                                    The Data Quality Score (0-100%) represents the percentage of non-null, valid data points for a well across all required fields. A score of 100% means all data points are complete and valid. Lower scores indicate missing or invalid values, which may reduce the reliability of the trend analysis.
+                                </div>
+                            </div>
+                        </div>
+                        <div class="accordion-item">
+                            <h2 class="accordion-header">
+                                <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#faq6">
+                                    <strong>Q:</strong> How do I interpret the trend flags?
+                                </button>
+                            </h2>
+                            <div id="faq6" class="accordion-collapse collapse" data-bs-parent="#faqAccordion">
+                                <div class="accordion-body">
+                                    <ul class="mb-0">
+                                        <li><strong>BSW Flag (Red)</strong> — BS&W trend is increasing, indicating water cut is rising. This is a positive gas lift indicator.</li>
+                                        <li><strong>Oil Rate Flag (Red)</strong> — Oil production is declining. This is a strong positive gas lift indicator.</li>
+                                        <li><strong>GLR Flag (Red)</strong> — Gas-liquid ratio is declining, suggesting the well may need additional lift gas.</li>
+                                    </ul>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="accordion-item">
+                            <h2 class="accordion-header">
+                                <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#faq7">
+                                    <strong>Q:</strong> I'm getting an error. What should I do?
+                                </button>
+                            </h2>
+                            <div id="faq7" class="accordion-collapse collapse" data-bs-parent="#faqAccordion">
+                                <div class="accordion-body">
+                                    Common issues:
+                                    <ul class="mb-0">
+                                        <li><strong>File upload fails:</strong> Check file size (max 100 MB) and format (.xlsx or .csv)</li>
+                                        <li><strong>No wells analyzed:</strong> Ensure all required columns are mapped and wells have ≥5 data points</li>
+                                        <li><strong>Analysis fails:</strong> Check for non-numeric values in numeric columns (BS&W, Oil, GLR, Pressure)</li>
+                                        <li><strong>Charts not loading:</strong> Ensure your browser supports JavaScript and Chart.js</li>
+                                    </ul>
+                                    If problems persist, contact support via the <a href="{% url 'contact' %}">Contact & Support</a> page.
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </section>
         </div>
     </div>
 </div>
+
+<style>
+/* Manual-specific styles */
+.manual-container {
+    max-width: 1000px;
+    margin: 0 auto;
+}
+
+.manual-content {
+    font-size: 0.95rem;
+    line-height: 1.7;
+    color: #2c3e50;
+}
+
+.manual-toc {
+    background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%) !important;
+}
+
+.toc-link {
+    color: var(--primary-color);
+    text-decoration: none;
+    padding: 4px 8px;
+    border-radius: 4px;
+    display: block;
+    transition: all 0.2s;
+    font-weight: 500;
+}
+
+.toc-link:hover {
+    background: var(--primary-color);
+    color: #fff;
+    padding-left: 12px;
+}
+
+.manual-section {
+    margin-bottom: 2.5rem;
+    padding-top: 0.5rem;
+}
+
+.section-title {
+    font-size: 1.3rem;
+    font-weight: 700;
+    color: var(--primary-color);
+    border-bottom: 2px solid var(--primary-color);
+    padding-bottom: 0.5rem;
+    margin-bottom: 1rem;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.section-number {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 32px;
+    height: 32px;
+    background: var(--primary-color);
+    color: #fff;
+    border-radius: 50%;
+    font-size: 0.85rem;
+    flex-shrink: 0;
+}
+
+.section-body h5 {
+    color: #34495e;
+    font-weight: 600;
+    margin-top: 1.5rem;
+}
+
+.section-body h5:first-child {
+    margin-top: 0;
+}
+
+.feature-card {
+    background: #fff;
+    transition: all 0.3s ease;
+    border-color: #e0e0e0 !important;
+}
+
+.feature-card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 15px rgba(0,0,0,0.08);
+    border-color: var(--primary-color) !important;
+}
+
+.feature-card i {
+    color: var(--primary-color);
+}
+
+.manual-content .table thead th {
+    background: var(--primary-color);
+    color: #fff;
+    border: none;
+    font-size: 0.85rem;
+}
+
+.manual-content .table {
+    font-size: 0.9rem;
+}
+
+.manual-content .accordion-item {
+    border: 1px solid #e0e0e0;
+    margin-bottom: 0.5rem;
+    border-radius: 8px !important;
+    overflow: hidden;
+}
+
+.manual-content .accordion-button {
+    font-weight: 500;
+    background: #f8f9fa;
+    padding: 0.75rem 1rem;
+}
+
+.manual-content .accordion-button:not(.collapsed) {
+    background: var(--primary-color);
+    color: #fff;
+}
+
+.manual-content .accordion-button:focus {
+    box-shadow: none;
+    border-color: var(--primary-color);
+}
+
+.manual-content code {
+    background: #f0f2f5;
+    padding: 2px 6px;
+    border-radius: 3px;
+    font-size: 0.85em;
+    color: #e74c3c;
+}
+
+.manual-content ol li,
+.manual-content ul li {
+    margin-bottom: 0.3rem;
+}
+
+/* Print styling */
+@media print {
+    .sidebar, .navbar, .footer, .sidebar-toggle, #downloadPdfBtn,
+    .breadcrumb-custom, .toast-container, .loading-overlay {
+        display: none !important;
+    }
+    .main-content {
+        margin-left: 0 !important;
+        padding: 0 !important;
+    }
+    .card {
+        box-shadow: none !important;
+        border: 1px solid #ddd !important;
+    }
+    .card-header {
+        background: #0056b3 !important;
+        -webkit-print-color-adjust: exact;
+        print-color-adjust: exact;
+    }
+    .manual-toc {
+        break-inside: avoid;
+    }
+    .manual-section {
+        break-inside: avoid;
+        page-break-inside: avoid;
+    }
+    .table thead th {
+        background: #0056b3 !important;
+        -webkit-print-color-adjust: exact;
+        print-color-adjust: exact;
+    }
+    .section-number {
+        -webkit-print-color-adjust: exact;
+        print-color-adjust: exact;
+    }
+    .step-indicator .step-circle {
+        -webkit-print-color-adjust: exact;
+        print-color-adjust: exact;
+    }
+    .alert {
+        break-inside: avoid;
+    }
+    .accordion-button::after {
+        display: none;
+    }
+    .accordion-collapse {
+        display: block !important;
+    }
+    .accordion-button {
+        background: #f8f9fa !important;
+        color: #000 !important;
+    }
+    a {
+        color: #0056b3 !important;
+        text-decoration: none !important;
+    }
+    .feature-card:hover {
+        transform: none !important;
+        box-shadow: none !important;
+    }
+}
+
+/* Smooth scroll */
+html {
+    scroll-behavior: smooth;
+}
+</style>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // Highlight active section in TOC on scroll
+    const sections = document.querySelectorAll('.manual-section');
+    const tocLinks = document.querySelectorAll('.toc-link');
+    
+    const observer = new IntersectionObserver((entries) => {
+        entries.forEach(entry => {
+            if (entry.isIntersecting) {
+                tocLinks.forEach(link => {
+                    link.style.background = '';
+                    link.style.color = '';
+                    if (link.getAttribute('href') === '#' + entry.target.id) {
+                        link.style.background = 'var(--primary-color)';
+                        link.style.color = '#fff';
+                    }
+                });
+            }
+        });
+    }, { threshold: 0.3 });
+    
+    sections.forEach(section => observer.observe(section));
+});
+</script>
 {% endblock %}

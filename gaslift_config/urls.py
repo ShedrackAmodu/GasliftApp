@@ -17,6 +17,7 @@ urlpatterns = [
     path('', views.dashboard, name='dashboard'),
     path('contact/', TemplateView.as_view(template_name='base/contact.html'), name='contact'),
     path('user-manual/', TemplateView.as_view(template_name='base/user_manual.html'), name='user_manual'),
+    path('user-manual/download-pdf/', views.download_manual_pdf, name='download_manual_pdf'),
 ]
 
 if settings.DEBUG:

@@ -11,40 +11,57 @@
 {% endblock %}
 
 {% block content %}
-<div class="row">
-    <!-- Stats Row -->
-    <div class="col-md-3 col-6 mb-3">
-        <div class="card border-left-primary h-100">
+<div class="page-hero">
+    <div class="d-flex flex-column flex-lg-row justify-content-between align-items-lg-center gap-3">
+        <div>
+            <span class="hero-badge"><i class="bi bi-lightning-charge"></i> Streamlined workflow</span>
+            <h2 class="mt-3 mb-2">Turn well data into clear gas lift opportunities</h2>
+            <p class="mb-0 text-white-50">Upload, review, and prioritize candidates from one polished workspace.</p>
+        </div>
+        <div class="d-flex flex-wrap gap-2">
+            <a href="{% url 'data_upload:upload' %}" class="btn btn-light">
+                <i class="bi bi-cloud-arrow-up me-1"></i> Upload data
+            </a>
+            <a href="{% url 'analysis:my_analyses' %}" class="btn btn-outline-light">
+                <i class="bi bi-graph-up me-1"></i> View analyses
+            </a>
+        </div>
+    </div>
+</div>
+
+<div class="row g-3 mb-4">
+    <div class="col-md-3 col-6">
+        <div class="card border-left-primary h-100 feature-card">
             <div class="card-body stat-card">
                 <div class="stat-icon text-primary"><i class="bi bi-cloud-arrow-up"></i></div>
-                <div class="stat-number">{{ total_uploads|default:"0" }}</div>
+                <div class="stat-number" data-target="{{ total_uploads|default:'0' }}">{{ total_uploads|default:"0" }}</div>
                 <div class="stat-label">Total Uploads</div>
             </div>
         </div>
     </div>
-    <div class="col-md-3 col-6 mb-3">
-        <div class="card border-left-success h-100">
+    <div class="col-md-3 col-6">
+        <div class="card border-left-success h-100 feature-card">
             <div class="card-body stat-card">
                 <div class="stat-icon text-success"><i class="bi bi-graph-up"></i></div>
-                <div class="stat-number">{{ total_analyses|default:"0" }}</div>
+                <div class="stat-number" data-target="{{ total_analyses|default:'0' }}">{{ total_analyses|default:"0" }}</div>
                 <div class="stat-label">Analyses Run</div>
             </div>
         </div>
     </div>
-    <div class="col-md-3 col-6 mb-3">
-        <div class="card border-left-info h-100">
+    <div class="col-md-3 col-6">
+        <div class="card border-left-info h-100 feature-card">
             <div class="card-body stat-card">
                 <div class="stat-icon text-info"><i class="bi bi-files"></i></div>
-                <div class="stat-number">{{ total_wells_analyzed|default:"0" }}</div>
+                <div class="stat-number" data-target="{{ total_wells_analyzed|default:'0' }}">{{ total_wells_analyzed|default:"0" }}</div>
                 <div class="stat-label">Wells Analyzed</div>
             </div>
         </div>
     </div>
-    <div class="col-md-3 col-6 mb-3">
-        <div class="card border-left-warning h-100">
+    <div class="col-md-3 col-6">
+        <div class="card border-left-warning h-100 feature-card">
             <div class="card-body stat-card">
                 <div class="stat-icon text-warning"><i class="bi bi-trophy"></i></div>
-                <div class="stat-number">{{ top_candidates|default:"0" }}</div>
+                <div class="stat-number" data-target="{{ top_candidates|default:'0' }}">{{ top_candidates|default:"0" }}</div>
                 <div class="stat-label">Top Candidates</div>
             </div>
         </div>
@@ -57,12 +74,12 @@
     </div>
     <div class="card-body">
         {% if user.is_authenticated %}
-        <div class="row">
-            <div class="col-md-6 mb-3">
-                <div class="card border-left-primary h-100">
+        <div class="row g-3">
+            <div class="col-md-6">
+                <div class="card border-left-primary h-100 feature-card">
                     <div class="card-body">
                         <h5 class="card-title"><i class="bi bi-cloud-arrow-up"></i> Upload Data</h5>
-                        <p class="card-text">Start a new analysis by uploading well test data.</p>
+                        <p class="card-text">Start a new analysis by uploading well test data and mapping your columns.</p>
                         <a href="{% url 'data_upload:upload' %}" class="btn btn-primary">
                             <i class="bi bi-cloud-arrow-up"></i> Upload File
                         </a>
@@ -70,11 +87,11 @@
                 </div>
             </div>
             
-            <div class="col-md-6 mb-3">
-                <div class="card border-left-info h-100">
+            <div class="col-md-6">
+                <div class="card border-left-info h-100 feature-card">
                     <div class="card-body">
                         <h5 class="card-title"><i class="bi bi-file-earmark-text"></i> My Uploads</h5>
-                        <p class="card-text">View and manage your previous uploads.</p>
+                        <p class="card-text">Review prior uploads, inspect history, and pick up where you left off.</p>
                         <a href="{% url 'data_upload:my_uploads' %}" class="btn btn-info text-white">
                             <i class="bi bi-files"></i> View Uploads
                         </a>
@@ -83,12 +100,12 @@
             </div>
         </div>
         
-        <div class="row">
-            <div class="col-md-6 mb-3">
-                <div class="card border-left-success h-100">
+        <div class="row g-3 mt-1">
+            <div class="col-md-6">
+                <div class="card border-left-success h-100 feature-card">
                     <div class="card-body">
                         <h5 class="card-title"><i class="bi bi-graph-up"></i> My Analyses</h5>
-                        <p class="card-text">View your completed and ongoing analyses.</p>
+                        <p class="card-text">Open completed and in-progress analyses to compare trends and results.</p>
                         <a href="{% url 'analysis:my_analyses' %}" class="btn btn-success">
                             <i class="bi bi-graph-up"></i> View Analyses
                         </a>
@@ -96,11 +113,11 @@
                 </div>
             </div>
             
-            <div class="col-md-6 mb-3">
-                <div class="card border-left-warning h-100">
+            <div class="col-md-6">
+                <div class="card border-left-warning h-100 feature-card">
                     <div class="card-body">
                         <h5 class="card-title"><i class="bi bi-question-circle"></i> Help & Support</h5>
-                        <p class="card-text">Learn how to use the Gas Lift system.</p>
+                        <p class="card-text">Use the guide to understand the process and get unstuck quickly.</p>
                         <a href="{% url 'user_manual' %}" class="btn btn-warning">
                             <i class="bi bi-book"></i> View Manual
                         </a>
@@ -109,19 +126,22 @@
             </div>
         </div>
 
-        <div class="alert alert-info mt-4">
-            <h5><i class="bi bi-info-circle"></i> Quick Guide</h5>
-            <p>Follow these steps to identify gas lift candidates:</p>
-            <ol>
-                <li><strong>Upload Data</strong> - Upload your well test data (Excel or CSV)</li>
-                <li><strong>Map Columns</strong> - Match your data columns to our required fields</li>
-                <li><strong>Preview Data</strong> - Check that the data looks correct</li>
-                <li><strong>Adjust Weights</strong> - Set importance levels for each parameter</li>
-                <li><strong>View Trends</strong> - Explore individual well performance</li>
-                <li><strong>Run Analysis</strong> - Calculate trends and rank wells</li>
-                <li><strong>View Results</strong> - See ranked candidate wells</li>
-                <li><strong>Export Results</strong> - Download reports for sharing</li>
-            </ol>
+        <div class="card mt-4 feature-card">
+            <div class="card-body">
+                <div class="d-flex flex-column flex-md-row justify-content-between align-items-md-center gap-2">
+                    <h5 class="mb-0"><i class="bi bi-info-circle text-primary me-2"></i> Quick Guide – 6 Steps to Identify Gas Lift Candidates</h5>
+                    <span class="badge bg-light text-primary">Fast path to results</span>
+                </div>
+                <div class="step-indicator mt-3">
+                    <div class="step"><div class="step-circle">1</div><div class="step-label">Upload</div></div>
+                    <div class="step"><div class="step-circle">2</div><div class="step-label">Mapping</div></div>
+                    <div class="step"><div class="step-circle">3</div><div class="step-label">Preview</div></div>
+                    <div class="step"><div class="step-circle">4</div><div class="step-label">Weights</div></div>
+                    <div class="step"><div class="step-circle">5</div><div class="step-label">Trends</div></div>
+                    <div class="step"><div class="step-circle">6</div><div class="step-label">Results</div></div>
+                </div>
+                <p class="text-muted mt-2 mb-0 small">Upload your well test data, map columns, adjust weights, and run the analysis to discover your top gas lift candidates.</p>
+            </div>
         </div>
         {% else %}
         <div class="alert alert-warning">

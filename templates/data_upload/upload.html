@@ -84,20 +84,18 @@
                 <div class="mb-3">
                     <div class="form-group">
                         <label for="file" class="form-label"><strong>Select File to Upload:</strong></label>
-                        <div class="input-group">
-                            <input type="file" class="form-control" id="file" name="file" accept=".xlsx, .csv" required>
-                            <button type="submit" class="btn btn-primary" id="uploadBtn">
-                                <i class="bi bi-cloud-arrow-up"></i> Upload
-                            </button>
-                        </div>
-                        <small class="form-text text-muted">Accepted formats: .xlsx, .csv (Max 100 MB)</small>
+                        <input type="file" class="form-control mb-2" id="file" name="file" accept=".xlsx, .csv" required>
+                        <button type="submit" class="btn btn-primary w-100 w-md-auto" id="uploadBtn">
+                            <i class="bi bi-cloud-arrow-up"></i> Upload
+                        </button>
+                        <small class="form-text text-muted d-block mt-2">Accepted formats: .xlsx, .csv (Max 100 MB)</small>
                     </div>
                 </div>
             </form>
             
             <div class="alert alert-success mt-4">
                 <h5><i class="bi bi-check-circle"></i> What happens next:</h5>
-                <ol>
+                <ol class="mb-0">
                     <li>Your file will be verified for format compatibility</li>
                     <li>You'll map columns from your file to our required fields</li>
                     <li>You'll preview the data to ensure it's correct</li>

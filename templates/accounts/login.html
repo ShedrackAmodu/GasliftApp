@@ -3,45 +3,51 @@
 {% block title %}Login - Gas Lift{% endblock %}
 
 {% block content %}
-<div class="row justify-content-center">
-    <div class="col-md-5">
-        <div class="card mt-5">
-            <div class="card-header">
-                <h3><i class="bi bi-box-arrow-in-right"></i> Login</h3>
-            </div>
-            <div class="card-body">
-                {% if error %}
-                <div class="alert alert-danger">
-                    <i class="bi bi-exclamation-triangle"></i> {{ error }}
+<div class="auth-shell py-4">
+    <div class="row justify-content-center">
+        <div class="col-lg-5 col-md-7">
+            <div class="card auth-card mt-3">
+                <div class="card-header text-center">
+                    <div class="d-inline-flex align-items-center justify-content-center rounded-circle bg-white text-primary mb-2" style="width: 48px; height: 48px;">
+                        <i class="bi bi-box-arrow-in-right fs-4"></i>
+                    </div>
+                    <h3 class="mb-1">Welcome back</h3>
+                    <p class="mb-0 small opacity-75">Sign in to continue your analysis workflow</p>
                 </div>
-                {% endif %}
-                
-                <form method="post">
-                    {% csrf_token %}
-                    <div class="mb-3">
-                        <label for="username" class="form-label">Username</label>
-                        <div class="input-group">
-                            <span class="input-group-text"><i class="bi bi-person"></i></span>
-                            <input type="text" class="form-control" id="username" name="username" placeholder="Enter your username" required autofocus>
-                        </div>
+                <div class="card-body">
+                    {% if error %}
+                    <div class="alert alert-danger">
+                        <i class="bi bi-exclamation-triangle"></i> {{ error }}
                     </div>
+                    {% endif %}
                     
-                    <div class="mb-3">
-                        <label for="password" class="form-label">Password</label>
-                        <div class="input-group">
-                            <span class="input-group-text"><i class="bi bi-lock"></i></span>
-                            <input type="password" class="form-control" id="password" name="password" placeholder="Enter your password" required>
+                    <form method="post">
+                        {% csrf_token %}
+                        <div class="mb-3">
+                            <label for="username" class="form-label">Username</label>
+                            <div class="input-group">
+                                <span class="input-group-text"><i class="bi bi-person"></i></span>
+                                <input type="text" class="form-control" id="username" name="username" placeholder="Enter your username" required autofocus>
+                            </div>
                         </div>
-                    </div>
+                        
+                        <div class="mb-3">
+                            <label for="password" class="form-label">Password</label>
+                            <div class="input-group">
+                                <span class="input-group-text"><i class="bi bi-lock"></i></span>
+                                <input type="password" class="form-control" id="password" name="password" placeholder="Enter your password" required>
+                            </div>
+                        </div>
+                        
+                        <button type="submit" class="btn btn-primary w-100">
+                            <i class="bi bi-box-arrow-in-right"></i> Login
+                        </button>
+                    </form>
                     
-                    <button type="submit" class="btn btn-primary w-100">
-                        <i class="bi bi-box-arrow-in-right"></i> Login
-                    </button>
-                </form>
-                
-                <hr>
-                
-                <p class="text-center mb-0">Don't have an account? <a href="{% url 'accounts:signup' %}">Sign up here</a></p>
+                    <hr>
+                    
+                    <p class="text-center mb-0">Don't have an account? <a href="{% url 'accounts:signup' %}">Sign up here</a></p>
+                </div>
             </div>
         </div>
     </div>

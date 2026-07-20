@@ -1,0 +1,157 @@
+{% extends "base/base.html" %}
+
+{% block title %}Upload Completion Data - Gas Lift{% endblock %}
+
+{% block breadcrumb %}
+<nav aria-label="breadcrumb">
+    <ol class="breadcrumb breadcrumb-custom">
+        <li class="breadcrumb-item"><a href="{% url 'dashboard' %}">Dashboard</a></li>
+        <li class="breadcrumb-item"><a href="{% url 'analysis:my_analyses' %}">My Analyses</a></li>
+        <li class="breadcrumb-item"><a href="{% url 'analysis:well_trends' analysis.id %}">Well Trends</a></li>
+        <li class="breadcrumb-item active" aria-current="page">Upload Completion Data</li>
+    </ol>
+</nav>
+{% endblock %}
+
+{% block content %}
+<div class="col-12">
+    <!-- Step Indicator -->
+    <div class="step-indicator">
+        <div class="step completed">
+            <div class="step-circle">1</div>
+            <div class="step-label">Upload</div>
+        </div>
+        <div class="step completed">
+            <div class="step-circle">2</div>
+            <div class="step-label">Mapping</div>
+        </div>
+        <div class="step completed">
+            <div class="step-circle">3</div>
+            <div class="step-label">Preview</div>
+        </div>
+        <div class="step completed">
+            <div class="step-circle">4</div>
+            <div class="step-label">Weights</div>
+        </div>
+        <div class="step active">
+            <div class="step-circle">5</div>
+            <div class="step-label">Completion</div>
+        </div>
+    </div>
+
+    <div class="card">
+        <div class="card-header">
+            <h3><i class="bi bi-diagram-3"></i> Step 5: Upload Completion Data</h3>
+        </div>
+        <div class="card-body">
+            <p class="lead">Enter well completion details to check gas lift feasibility</p>
+            
+            <div class="alert alert-info">
+                <h5><i class="bi bi-info-circle"></i> Why is this important?</h5>
+                <p>Gas lift requires sufficient surface injection pressure to reach the mandrel depth. This tool calculates whether your available compression can actually lift the gas to the injection point.</p>
+                <ul>
+                    <li><strong>Mandrel depths:</strong> List of gas lift mandrel depths in the tubing (feet)</li>
+                    <li><strong>Packer depth:</strong> Depth of the packer (feet)</li>
+                    <li><strong>Available compression:</strong> Maximum pressure your compressor can deliver (psi)</li>
+                </ul>
+            </div>
+            
+            <form method="post">
+                {% csrf_token %}
+                
+                <div class="row">
+                    <div class="col-md-6">
+                        <div class="mb-3">
+                            <label for="{{ form.well_id.id_for_label }}" class="form-label">
+                                <strong>Well ID</strong>
+                            </label>
+                            {{ form.well_id }}
+                            <div class="form-text">
+                                Must match the well name in your production data
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-6">
+                        <div class="mb-3">
+                            <label for="{{ form.available_compression_pressure.id_for_label }}" class="form-label">
+                                <strong>Available Compression Pressure (psi)</strong>
+                            </label>
+                            {{ form.available_compression_pressure }}
+                            <div class="form-text">
+                                Maximum pressure your compressor can deliver
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="row">
+                    <div class="col-md-6">
+                        <div class="mb-3">
+                            <label for="{{ form.mandrel_depths.id_for_label }}" class="form-label">
+                                <strong>Mandrel Depths (ft)</strong>
+                            </label>
+                            {{ form.mandrel_depths }}
+                            <div class="form-text">
+                                Comma-separated: e.g., 3000, 4000, 5000
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-6">
+                        <div class="mb-3">
+                            <label for="{{ form.packer_depth.id_for_label }}" class="form-label">
+                                <strong>Packer Depth (ft)</strong>
+                            </label>
+                            {{ form.packer_depth }}
+                            <div class="form-text">
+                                Depth of the tubing packer
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="row">
+                    <div class="col-md-6">
+                        <div class="mb-3">
+                            <label for="{{ form.tubing_od.id_for_label }}" class="form-label">
+                                <strong>Tubing OD (inch)</strong> <span class="text-muted">(optional)</span>
+                            </label>
+                            {{ form.tubing_od }}
+                        </div>
+                    </div>
+                    <div class="col-md-6">
+                        <div class="mb-3">
+                            <label for="{{ form.tubing_id.id_for_label }}" class="form-label">
+                                <strong>Tubing ID (inch)</strong> <span class="text-muted">(optional)</span>
+                            </label>
+                            {{ form.tubing_id }}
+                        </div>
+                    </div>
+                </div>
+
+                <div class="alert alert-warning mt-3">
+                    <i class="bi bi-exclamation-triangle"></i> <strong>Note:</strong> 
+                    If you don't have exact tubing dimensions, the system will use default values. 
+                    More accurate dimensions improve the pressure calculation.
+                </div>
+
+                <div class="mt-4 d-flex flex-wrap gap-2">
+                    <button type="submit" class="btn btn-primary">
+                        <i class="bi bi-check-lg"></i> Save Completion Data
+                    </button>
+                    <a href="{% url 'analysis:well_trends' analysis.id %}" class="btn btn-secondary">
+                        <i class="bi bi-arrow-left"></i> Back to Trends
+                    </a>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<script>
+// Auto-format mandrel depths input
+document.getElementById('{{ form.mandrel_depths.id_for_label }}').addEventListener('blur', function() {
+    const values = this.value.split(',').map(v => v.trim()).filter(v => v);
+    this.value = values.join(', ');
+});
+</script>
+{% endblock %}

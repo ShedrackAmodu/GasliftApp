@@ -8,7 +8,9 @@ import csv
 from openpyxl import Workbook
 from openpyxl.styles import Font, Alignment, PatternFill
 
-from apps.analysis.models import AnalysisSession, WellTrendAnalysis
+from django.http import HttpResponse
+from apps.analysis.models import AnalysisSession, WellTrendAnalysis, CompletionData
+from apps.analysis.reporting import ReportGenerator
 
 @login_required(login_url='accounts:login')
 @require_http_methods(["GET"])
@@ -23,11 +25,21 @@ def view_results(request, analysis_id):
     page_number = request.GET.get('page', 1)
     page_obj = paginator.get_page(page_number)
     
+    # Get completion data for context
+    completion_data = {}
+    for completion in CompletionData.objects.filter(analysis=analysis):
+        completion_data[completion.well_id] = completion
+    
+    # Annotate well trends with completion feasibility
+    for trend in page_obj.object_list:
+        trend.completion_info = completion_data.get(trend.well_id)
+    
     context = {
         'analysis': analysis,
         'page_obj': page_obj,
         'well_trends': page_obj.object_list,
         'total_wells': well_trends.count(),
+        'completion_data': completion_data,
     }
     
     return render(request, 'results/view_results.html', context)
@@ -61,6 +73,14 @@ def export_excel(request, analysis_id):
         'Test Status',
         'Flow Line Pressure (psi)',
         'Well Choke Size',
+        'Data Quality Score',
+        'Outliers Removed',
+        'Choke Normalized',
+        'Liquid Loading Flag',
+        'Critical Velocity (ft/s)',
+        'Days to Economic Limit',
+        'Recommended Gas (MMscf/d)',
+        'Completion Feasibility',
         'Summary Comment',
     ]
     
@@ -92,6 +112,14 @@ def export_excel(request, analysis_id):
             trend.test_status or '',
             trend.flow_line_pressure if trend.flow_line_pressure is not None else '',
             trend.well_choke_size or '',
+            trend.data_quality_score,
+            trend.outlier_count,
+            'Yes' if trend.is_choke_normalized else 'No',
+            'Yes' if trend.liquid_loading_flag else 'No',
+            trend.critical_velocity if trend.critical_velocity is not None else '',
+            trend.days_to_economic_limit if trend.days_to_economic_limit is not None else '',
+            trend.recommended_gas_mmscf if trend.recommended_gas_mmscf is not None else '',
+            trend.get_completion_feasibility_display() if trend.completion_feasibility else 'Unknown',
             trend.summary_comment,
         ])
     
@@ -99,7 +127,9 @@ def export_excel(request, analysis_id):
     column_widths = {
         'A': 8, 'B': 15, 'C': 38, 'D': 10, 'E': 13,
         'F': 10, 'G': 12, 'H': 15, 'I': 12, 'J': 15,
-        'K': 15, 'L': 15, 'M': 20, 'N': 15, 'O': 40,
+        'K': 15, 'L': 15, 'M': 20, 'N': 15, 'O': 18,
+        'P': 16, 'Q': 16, 'R': 16, 'S': 18, 'T': 22,
+        'U': 22, 'V': 25, 'W': 40,
     }
     for col, width in column_widths.items():
         ws.column_dimensions[col].width = width
@@ -129,7 +159,10 @@ def export_csv(request, analysis_id):
         'Rank', 'Well', 'UID', 'BSW_Flag', 'OilRate_Flag', 'GLR_Flag',
         'BSW Trend', 'Oil Rate Trend', 'GLR Trend', 'Candidate Score',
         'Prod Method', 'Test Status', 'Flow Line Pressure (psi)',
-        'Well Choke Size', 'Summary Comment',
+        'Well Choke Size', 'Data Quality Score', 'Outliers Removed',
+        'Choke Normalized', 'Liquid Loading Flag', 'Critical Velocity (ft/s)',
+        'Days to Economic Limit', 'Recommended Gas (MMscf/d)',
+        'Completion Feasibility', 'Summary Comment',
     ])
     
     for trend in well_trends:
@@ -148,6 +181,14 @@ def export_csv(request, analysis_id):
             trend.test_status or '',
             trend.flow_line_pressure if trend.flow_line_pressure is not None else '',
             trend.well_choke_size or '',
+            trend.data_quality_score,
+            trend.outlier_count,
+            'Yes' if trend.is_choke_normalized else 'No',
+            'Yes' if trend.liquid_loading_flag else 'No',
+            trend.critical_velocity if trend.critical_velocity is not None else '',
+            trend.days_to_economic_limit if trend.days_to_economic_limit is not None else '',
+            trend.recommended_gas_mmscf if trend.recommended_gas_mmscf is not None else '',
+            trend.get_completion_feasibility_display() if trend.completion_feasibility else 'Unknown',
             trend.summary_comment,
         ])
     
@@ -205,3 +246,22 @@ def filter_results(request, analysis_id):
     }
     
     return HttpResponse(json.dumps(data), content_type='application/json')
+
+@login_required(login_url='accounts:login')
+@require_http_methods(["GET"])
+def export_pdf(request, analysis_id):
+    """Export results as executive summary PDF"""
+    analysis = get_object_or_404(AnalysisSession, id=analysis_id, user=request.user)
+    well_trends = WellTrendAnalysis.objects.filter(analysis=analysis).order_by('rank')
+    
+    # Get completion data
+    completion_data = {}
+    for completion in CompletionData.objects.filter(analysis=analysis):
+        completion_data[completion.well_id] = completion
+    
+    pdf_bytes = ReportGenerator.generate_pdf(analysis, well_trends, completion_data)
+    
+    response = HttpResponse(content_type='application/pdf')
+    response['Content-Disposition'] = f'attachment; filename="GasLift_Executive_Summary_{str(analysis_id)[:8]}.pdf"'
+    response.write(pdf_bytes)
+    return response

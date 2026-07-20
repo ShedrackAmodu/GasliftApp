@@ -11,11 +11,18 @@ logger = logging.getLogger(__name__)
 def _read_csv_rows(file_path):
     """Read CSV file and return list of dicts."""
     try:
-        content = file_path.read().decode('utf-8-sig')
-        file_path.seek(0)
-    except AttributeError:
-        with open(file_path, 'r', encoding='utf-8-sig') as f:
-            content = f.read()
+        if hasattr(file_path, 'read'):
+            content = file_path.read()
+            if isinstance(content, bytes):
+                content = content.decode('utf-8-sig')
+            else:
+                content = str(content)
+            file_path.seek(0)
+        else:
+            with open(file_path, 'r', encoding='utf-8-sig') as f:
+                content = f.read()
+    except Exception:
+        content = ''
 
     reader = csv.DictReader(io.StringIO(content))
     return [
@@ -197,14 +204,15 @@ class DataProcessor:
                 mapped_rows.append(new_row)
 
             # Remove fully empty rows
-            mapped_rows = [r for r in mapped_rows if any(v is not None for v in r.values())]
+            mapped_rows = [r for r in mapped_rows if any(v is not None and v != '' for v in r.values())]
 
-            # Data quality checks
             quality_report = {
                 'total_rows': len(mapped_rows),
                 'missing_values': {},
                 'data_types': {},
-                'warnings': []
+                'warnings': [],
+                'invalid_dates': 0,
+                'invalid_numeric': 0,
             }
 
             # Count missing values per field
@@ -229,14 +237,19 @@ class DataProcessor:
             numeric_cols = ['BS&W (%)', 'Net Oil (bopd)', 'Form.GLR (scf/bbl)',
                           'Tubing Pressure (psi)', 'Flow Line Pressure (psi)']
 
+            invalid_numeric_cols = []
             for col in numeric_cols:
                 for r in mapped_rows:
                     val = r.get(col)
                     if val is not None and val != '' and _coerce_numeric(val) is None:
-                        quality_report['warnings'].append(
-                            f"Could not convert some values in {col} to numeric"
-                        )
+                        invalid_numeric_cols.append(col)
+                        quality_report['invalid_numeric'] += 1
                         break
+
+            if invalid_numeric_cols:
+                quality_report['warnings'].append(
+                    f"Could not convert some values in the following numeric columns: {', '.join(sorted(set(invalid_numeric_cols)))}"
+                )
 
             # Validate dates
             invalid_dates = 0
@@ -247,10 +260,22 @@ class DataProcessor:
                         _parse_date(val)
                     except (ValueError, TypeError):
                         invalid_dates += 1
+
+            quality_report['invalid_dates'] = invalid_dates
             if invalid_dates > 0:
                 quality_report['warnings'].append(
-                    f"Could not parse {invalid_dates} date(s)"
+                    f"Could not parse {invalid_dates} date(s). Please use a supported date format."
                 )
+
+            # Flag missing required fields in sample data
+            missing_required = [field for field, count in quality_report['missing_values'].items() if count > 0]
+            if missing_required:
+                quality_report['warnings'].append(
+                    f"Required fields missing values in: {', '.join(missing_required)}"
+                )
+
+            if not mapped_rows:
+                return None, None, 'No valid rows were found in the uploaded file after mapping.'
 
             return mapped_rows, quality_report, None
 

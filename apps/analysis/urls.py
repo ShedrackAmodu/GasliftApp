@@ -9,5 +9,9 @@ urlpatterns = [
     path('<uuid:analysis_id>/well-data/<str:well_name>/', views.get_well_data, name='get_well_data'),
     path('<uuid:analysis_id>/run/', views.run_analysis, name='run_analysis'),
     path('<uuid:analysis_id>/delete/', views.delete_analysis, name='delete_analysis'),
+    path('<uuid:analysis_id>/upload-completion/', views.upload_completion_data, name='upload_completion'),
+    path('<uuid:analysis_id>/pvt/', views.configure_pvt, name='configure_pvt'),
+    path('<uuid:analysis_id>/sensitivity/', views.run_sensitivity, name='run_sensitivity'),
+    path('compare/', views.compare_analyses, name='compare_analyses'),
     path('my-analyses/', views.my_analyses, name='my_analyses'),
 ]

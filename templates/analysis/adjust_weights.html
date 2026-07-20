@@ -117,6 +117,77 @@
                         </div>
                     </div>
                 </div>
+
+                <hr>
+                <h5 class="mt-3"><i class="bi bi-gear"></i> Advanced Settings (Optional)</h5>
+                
+                <div class="row">
+                    <div class="col-md-6">
+                        <div class="mb-3">
+                            <label for="base_choke_size" class="form-label">
+                                <strong>Base Choke Size</strong>
+                                <span class="text-muted">(for normalization)</span>
+                            </label>
+                            <input type="text" class="form-control" id="base_choke_size" name="base_choke_size" value="{{ form.base_choke_size.value|default:'' }}" placeholder="e.g., 24/64">
+                            <div class="form-text">
+                                Normalize all rates to a common choke size to eliminate artificial decline from choke changes.
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-6">
+                        <div class="mb-3">
+                            <label for="economic_limit_oil_bopd" class="form-label">
+                                <strong>Economic Oil Rate Limit (bopd)</strong>
+                            </label>
+                            <input type="number" class="form-control" id="economic_limit_oil_bopd" name="economic_limit_oil_bopd" value="{{ form.economic_limit_oil_bopd.value|default:'50' }}" min="0" step="1">
+                            <div class="form-text">
+                                Wells below this rate are considered non-economic.
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="row">
+                    <div class="col-md-6">
+                        <div class="mb-3">
+                            <label for="outlier_method" class="form-label">
+                                <strong>Outlier Detection Method</strong>
+                            </label>
+                            <select class="form-select" id="outlier_method" name="outlier_method">
+                                <option value="iqr" {% if form.outlier_method.value == 'iqr' %}selected{% endif %}>IQR (1.5x)</option>
+                                <option value="hampel" {% if form.outlier_method.value == 'hampel' %}selected{% endif %}>Hampel Filter</option>
+                            </select>
+                            <div class="form-text">
+                                Method for detecting and filtering erroneous data points.
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-6">
+                        <div class="mb-3">
+                            <label for="outlier_threshold" class="form-label">
+                                <strong>Outlier Threshold Multiplier</strong>
+                            </label>
+                            <input type="number" class="form-control" id="outlier_threshold" name="outlier_threshold" value="{{ form.outlier_threshold.value|default:'1.5' }}" min="1.0" max="3.0" step="0.1">
+                            <div class="form-text">
+                                Higher values = less aggressive filtering (default 1.5).
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="row">
+                    <div class="col-md-6">
+                        <div class="mb-3">
+                            <label for="gas_constraint_mmscf" class="form-label">
+                                <strong>Gas Allocation Constraint (MMscf/d)</strong>
+                            </label>
+                            <input type="number" class="form-control" id="gas_constraint_mmscf" name="gas_constraint_mmscf" value="{{ form.gas_constraint_mmscf.value|default:'' }}" min="0" step="0.1" placeholder="e.g., 10">
+                            <div class="form-text">
+                                Available lift gas volume. If set, the knapsack optimizer will rank wells for optimal gas allocation.
+                            </div>
+                        </div>
+                    </div>
+                </div>
                 
                 <div class="mt-4 d-flex flex-wrap gap-2">
                     <button type="submit" class="btn btn-primary">

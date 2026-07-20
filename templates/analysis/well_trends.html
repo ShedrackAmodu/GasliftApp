@@ -68,42 +68,74 @@
                 <div class="alert alert-warning">No wells found in the data.</div>
                 {% endif %}
             </div>
+
+            <div id="wellInfo" class="alert alert-secondary" style="display: none;">
+                <div class="row">
+                    <div class="col-md-6">
+                        <strong>Data Quality Score:</strong> <span id="dataQualityScore">-</span>%<br>
+                        <strong>Outliers Removed:</strong> <span id="outlierCount">-</span>
+                    </div>
+                    <div class="col-md-6">
+                        <strong>Choke Normalized:</strong> <span id="chokeNormalized">No</span><br>
+                        <strong>Base Choke:</strong> <span id="baseChoke">{{ weights.base_choke_size|default:'Not set' }}</span><br>
+                        <strong>Outlier Filter:</strong> <span id="outlierMethod">{{ weights.outlier_method|default:'iqr' }}</span> ({{ weights.outlier_threshold|default:'1.5' }})
+                    </div>
+                </div>
+            </div>
             
             <div id="chartsContainer" style="display: none;">
                 <div class="alert alert-info mb-3">
-                    <i class="bi bi-info-circle"></i> The charts below show trends for the selected well. A <span class="text-danger">rising</span> BSW or <span class="text-warning">falling</span> Oil Rate, GLR, or Tubing Pressure may indicate a gas lift candidate.
+                    <i class="bi bi-info-circle"></i> The charts below show trends for the selected well. 
+                    <span class="text-danger">Rising</span> BSW or <span class="text-warning">falling</span> Oil Rate, GLR, or Tubing Pressure may indicate a gas lift candidate.
+                    <span id="normalizationNote" class="text-success d-none">Data normalized to base choke size.</span>
+                </div>
+                
+                <div class="row">
+                    <div class="col-12 col-md-6 mb-3">
+                        <div class="card">
+                            <div class="card-body">
+                                <div class="chart-container">
+                                    <canvas id="bswChart"></canvas>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-12 col-md-6 mb-3">
+                        <div class="card">
+                            <div class="card-body">
+                                <div class="chart-container">
+                                    <canvas id="oilChart"></canvas>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
                 </div>
                 <div class="row">
-                    <div class="col-md-6 mb-3">
+                    <div class="col-12 col-md-6 mb-3">
                         <div class="card">
                             <div class="card-body">
-                                <canvas id="bswChart"></canvas>
+                                <div class="chart-container">
+                                    <canvas id="glrChart"></canvas>
+                                </div>
                             </div>
                         </div>
                     </div>
-                    <div class="col-md-6 mb-3">
+                    <div class="col-12 col-md-6 mb-3">
                         <div class="card">
                             <div class="card-body">
-                                <canvas id="oilChart"></canvas>
+                                <div class="chart-container">
+                                    <canvas id="tpChart"></canvas>
+                                </div>
                             </div>
                         </div>
                     </div>
                 </div>
-                <div class="row">
-                    <div class="col-md-6 mb-3">
-                        <div class="card">
-                            <div class="card-body">
-                                <canvas id="glrChart"></canvas>
-                            </div>
-                        </div>
-                    </div>
-                    <div class="col-md-6 mb-3">
-                        <div class="card">
-                            <div class="card-body">
-                                <canvas id="tpChart"></canvas>
-                            </div>
-                        </div>
-                    </div>
+                
+                <div class="form-check form-switch mt-2">
+                    <input class="form-check-input" type="checkbox" id="showRejected" onchange="toggleRejectedPoints()">
+                    <label class="form-check-label" for="showRejected">
+                        <strong>Show Rejected Data Points</strong> (outliers removed from analysis)
+                    </label>
                 </div>
             </div>
             
@@ -118,6 +150,12 @@
                         <i class="bi bi-play-fill"></i> Run Analysis
                     </button>
                 </form>
+                <a href="{% url 'analysis:configure_pvt' analysis.id %}" class="btn btn-outline-info">
+                    <i class="bi bi-droplet"></i> Configure PVT
+                </a>
+                <a href="{% url 'analysis:upload_completion' analysis.id %}" class="btn btn-info">
+                    <i class="bi bi-diagram-3"></i> Upload Completion Data
+                </a>
                 <a href="{% url 'analysis:adjust_weights' upload.id %}" class="btn btn-secondary">
                     <i class="bi bi-arrow-left"></i> Back to Weights
                 </a>
@@ -145,6 +183,7 @@ function loadWellData() {
             
             const commonOptions = {
                 responsive: true,
+                maintainAspectRatio: true,
                 plugins: {
                     legend: { display: true }
                 },
@@ -153,90 +192,149 @@ function loadWellData() {
                 }
             };
             
+            // Show well info
+            if (data.data_quality_score !== undefined) {
+                document.getElementById('wellInfo').style.display = 'block';
+                document.getElementById('dataQualityScore').textContent = data.data_quality_score;
+                document.getElementById('outlierCount').textContent = Object.values(data.rejected_indices || {}).flat().length;
+                document.getElementById('chokeNormalized').textContent = data.is_choke_normalized ? 'Yes' : 'No';
+                document.getElementById('baseChoke').textContent = data.is_choke_normalized ? '{{ weights.base_choke_size|default:"Not set" }}' : '{{ weights.base_choke_size|default:"Not set" }}';
+                
+                if (data.is_choke_normalized) {
+                    document.getElementById('normalizationNote').classList.remove('d-none');
+                }
+            }
+
             const ctx1 = document.getElementById('bswChart').getContext('2d');
             if (bswChart) bswChart.destroy();
+            
+            // Prepare datasets with rejected points
+            const bswDatasets = prepareChartData(data.dates, data.bsw, data.rejected_indices?.bsw || [], '#dc3545', 'rgba(220, 53, 69, 0.1)', 'BS&W (%)');
+            
             bswChart = new Chart(ctx1, {
                 type: 'line',
                 data: {
                     labels: data.dates,
-                    datasets: [{
-                        label: 'BS&W (%)',
-                        data: data.bsw,
-                        borderColor: '#dc3545',
-                        backgroundColor: 'rgba(220, 53, 69, 0.1)',
-                        tension: 0.4,
-                        fill: true
-                    }]
+                    datasets: bswDatasets
                 },
                 options: Object.assign({}, commonOptions, {
-                    plugins: { title: { display: true, text: 'BS&W (Water Cut) Trend', color: '#dc3545', font: { weight: 'bold' } } }
+                    plugins: { 
+                        title: { display: true, text: 'BS&W (Water Cut) Trend', color: '#dc3545', font: { weight: 'bold' } },
+                        filler: { propagate: false }
+                    }
                 })
             });
             
             const ctx2 = document.getElementById('oilChart').getContext('2d');
             if (oilChart) oilChart.destroy();
+            
+            const oilDatasets = prepareChartData(data.dates, data.oil_rate, data.rejected_indices?.oil_rate || [], '#28a745', 'rgba(40, 167, 69, 0.1)', 'Oil Rate (bopd)');
+            
             oilChart = new Chart(ctx2, {
                 type: 'line',
                 data: {
                     labels: data.dates,
-                    datasets: [{
-                        label: 'Oil Rate (bopd)',
-                        data: data.oil_rate,
-                        borderColor: '#28a745',
-                        backgroundColor: 'rgba(40, 167, 69, 0.1)',
-                        tension: 0.4,
-                        fill: true
-                    }]
+                    datasets: oilDatasets
                 },
                 options: Object.assign({}, commonOptions, {
-                    plugins: { title: { display: true, text: 'Oil Production Trend', color: '#28a745', font: { weight: 'bold' } } }
+                    plugins: { 
+                        title: { display: true, text: 'Oil Production Trend', color: '#28a745', font: { weight: 'bold' } },
+                        filler: { propagate: false }
+                    }
                 })
             });
             
             const ctx3 = document.getElementById('glrChart').getContext('2d');
             if (glrChart) glrChart.destroy();
+            
+            const glrDatasets = prepareChartData(data.dates, data.glr, data.rejected_indices?.glr || [], '#ffc107', 'rgba(255, 193, 7, 0.1)', 'GLR (scf/bbl)');
+            
             glrChart = new Chart(ctx3, {
                 type: 'line',
                 data: {
                     labels: data.dates,
-                    datasets: [{
-                        label: 'GLR (scf/bbl)',
-                        data: data.glr,
-                        borderColor: '#ffc107',
-                        backgroundColor: 'rgba(255, 193, 7, 0.1)',
-                        tension: 0.4,
-                        fill: true
-                    }]
+                    datasets: glrDatasets
                 },
                 options: Object.assign({}, commonOptions, {
-                    plugins: { title: { display: true, text: 'Gas Liquid Ratio Trend', color: '#856404', font: { weight: 'bold' } } }
+                    plugins: { 
+                        title: { display: true, text: 'Gas Liquid Ratio Trend', color: '#856404', font: { weight: 'bold' } },
+                        filler: { propagate: false }
+                    }
                 })
             });
             
             const ctx4 = document.getElementById('tpChart').getContext('2d');
             if (tpChart) tpChart.destroy();
+            
+            const tpDatasets = prepareChartData(data.dates, data.tubing_pressure, data.rejected_indices?.tp || [], '#17a2b8', 'rgba(23, 162, 184, 0.1)', 'Tubing Pressure (psi)');
+            
             tpChart = new Chart(ctx4, {
                 type: 'line',
                 data: {
                     labels: data.dates,
-                    datasets: [{
-                        label: 'Tubing Pressure (psi)',
-                        data: data.tubing_pressure,
-                        borderColor: '#17a2b8',
-                        backgroundColor: 'rgba(23, 162, 184, 0.1)',
-                        tension: 0.4,
-                        fill: true
-                    }]
+                    datasets: tpDatasets
                 },
                 options: Object.assign({}, commonOptions, {
-                    plugins: { title: { display: true, text: 'Tubing Pressure Trend', color: '#17a2b8', font: { weight: 'bold' } } }
+                    plugins: { 
+                        title: { display: true, text: 'Tubing Pressure Trend', color: '#17a2b8', font: { weight: 'bold' } },
+                        filler: { propagate: false }
+                    }
                 })
             });
+            
+            // Store rejected indices globally for toggle
+            window.currentRejectedIndices = data.rejected_indices || {};
+            window.showRejectedPoints = false;
         })
         .catch(error => {
             hideLoading();
             showToast('Error loading data: ' + error, 'danger');
         });
+}
+
+// Helper function to prepare chart data with rejected points
+function prepareChartData(dates, values, rejectedIndices, borderColor, backgroundColor, label) {
+    const datasets = [];
+    
+    // Main data line (non-rejected points)
+    const mainData = values.map((v, i) => rejectedIndices.includes(i) ? null : v);
+    datasets.push({
+        label: label,
+        data: mainData,
+        borderColor: borderColor,
+        backgroundColor: backgroundColor,
+        tension: 0.4,
+        fill: true,
+        spanGaps: false
+    });
+    
+    // Rejected points (hidden by default)
+    const rejectedData = values.map((v, i) => rejectedIndices.includes(i) ? v : null);
+    datasets.push({
+        label: 'Rejected (outliers)',
+        data: rejectedData,
+        borderColor: 'rgba(255, 99, 132, 0.5)',
+        backgroundColor: 'rgba(255, 99, 132, 0.5)',
+        pointRadius: 6,
+        pointStyle: 'crossRot',
+        showLine: false,
+        hidden: true
+    });
+    
+    return datasets;
+}
+
+// Toggle rejected points visibility
+function toggleRejectedPoints() {
+    const checkbox = document.getElementById('showRejected');
+    window.showRejectedPoints = checkbox.checked;
+    
+    [bswChart, oilChart, glrChart, tpChart].forEach(chart => {
+        if (chart && chart.data.datasets.length > 1) {
+            chart.setDatasetVisibility(1, checkbox.checked);
+            chart.update();
+        }
+    });
 }
 
 function getCookie(name) {

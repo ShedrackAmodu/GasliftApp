@@ -3,76 +3,82 @@
 {% block title %}Sign Up - Gas Lift{% endblock %}
 
 {% block content %}
-<div class="row justify-content-center">
-    <div class="col-md-6">
-        <div class="card mt-5">
-            <div class="card-header">
-                <h3><i class="bi bi-person-plus"></i> Create Account</h3>
-            </div>
-            <div class="card-body">
-                <form method="post">
-                    {% csrf_token %}
-                    
-                    {% if form.non_field_errors %}
-                    <div class="alert alert-danger">
-                        {% for error in form.non_field_errors %}
-                        <p class="mb-0">{{ error }}</p>
-                        {% endfor %}
+<div class="auth-shell py-4">
+    <div class="row justify-content-center">
+        <div class="col-lg-6 col-md-8">
+            <div class="card auth-card mt-3">
+                <div class="card-header text-center">
+                    <div class="d-inline-flex align-items-center justify-content-center rounded-circle bg-white text-primary mb-2" style="width: 48px; height: 48px;">
+                        <i class="bi bi-person-plus fs-4"></i>
                     </div>
-                    {% endif %}
-                    
-                    <div class="row">
-                        <div class="col-md-6 mb-3">
-                            <label for="username" class="form-label">Username <span class="text-danger">*</span></label>
-                            <div class="input-group">
-                                <span class="input-group-text"><i class="bi bi-person"></i></span>
-                                <input type="text" class="form-control {% if form.username.errors %}is-invalid{% endif %}" id="username" name="username" value="{{ form.username.value|default_if_none:'' }}" required>
+                    <h3 class="mb-1">Create your account</h3>
+                    <p class="mb-0 small opacity-75">Get started with a cleaner, faster workflow</p>
+                </div>
+                <div class="card-body">
+                    <form method="post">
+                        {% csrf_token %}
+                        
+                        {% if form.non_field_errors %}
+                        <div class="alert alert-danger">
+                            {% for error in form.non_field_errors %}
+                            <p class="mb-0">{{ error }}</p>
+                            {% endfor %}
+                        </div>
+                        {% endif %}
+                        
+                        <div class="row">
+                            <div class="col-md-6 mb-3">
+                                <label for="username" class="form-label">Username <span class="text-danger">*</span></label>
+                                <div class="input-group">
+                                    <span class="input-group-text"><i class="bi bi-person"></i></span>
+                                    <input type="text" class="form-control {% if form.username.errors %}is-invalid{% endif %}" id="username" name="username" value="{{ form.username.value|default_if_none:'' }}" required>
+                                </div>
+                                {% if form.username.errors %}<small class="text-danger">{{ form.username.errors.0 }}</small>{% endif %}
                             </div>
-                            {% if form.username.errors %}<small class="text-danger">{{ form.username.errors.0 }}</small>{% endif %}
-                        </div>
-                        <div class="col-md-6 mb-3">
-                            <label for="email" class="form-label">Email <span class="text-danger">*</span></label>
-                            <div class="input-group">
-                                <span class="input-group-text"><i class="bi bi-envelope"></i></span>
-                                <input type="email" class="form-control {% if form.email.errors %}is-invalid{% endif %}" id="email" name="email" value="{{ form.email.value|default_if_none:'' }}" required>
+                            <div class="col-md-6 mb-3">
+                                <label for="email" class="form-label">Email <span class="text-danger">*</span></label>
+                                <div class="input-group">
+                                    <span class="input-group-text"><i class="bi bi-envelope"></i></span>
+                                    <input type="email" class="form-control {% if form.email.errors %}is-invalid{% endif %}" id="email" name="email" value="{{ form.email.value|default_if_none:'' }}" required>
+                                </div>
+                                {% if form.email.errors %}<small class="text-danger">{{ form.email.errors.0 }}</small>{% endif %}
                             </div>
-                            {% if form.email.errors %}<small class="text-danger">{{ form.email.errors.0 }}</small>{% endif %}
                         </div>
-                    </div>
+                        
+                        <div class="row">
+                            <div class="col-md-6 mb-3">
+                                <label for="first_name" class="form-label">First Name</label>
+                                <input type="text" class="form-control" id="first_name" name="first_name" value="{{ form.first_name.value|default_if_none:'' }}" placeholder="Optional">
+                            </div>
+                            <div class="col-md-6 mb-3">
+                                <label for="last_name" class="form-label">Last Name</label>
+                                <input type="text" class="form-control" id="last_name" name="last_name" value="{{ form.last_name.value|default_if_none:'' }}" placeholder="Optional">
+                            </div>
+                        </div>
+                        
+                        <div class="row">
+                            <div class="col-md-6 mb-3">
+                                <label for="password1" class="form-label">Password <span class="text-danger">*</span></label>
+                                <input type="password" class="form-control {% if form.password1.errors %}is-invalid{% endif %}" id="password1" name="password1" required>
+                                {% if form.password1.help_text %}<small class="form-text text-muted">{{ form.password1.help_text }}</small>{% endif %}
+                                {% if form.password1.errors %}<small class="text-danger">{{ form.password1.errors.0 }}</small>{% endif %}
+                            </div>
+                            <div class="col-md-6 mb-3">
+                                <label for="password2" class="form-label">Confirm Password <span class="text-danger">*</span></label>
+                                <input type="password" class="form-control {% if form.password2.errors %}is-invalid{% endif %}" id="password2" name="password2" required>
+                                {% if form.password2.errors %}<small class="text-danger">{{ form.password2.errors.0 }}</small>{% endif %}
+                            </div>
+                        </div>
+                        
+                        <button type="submit" class="btn btn-primary w-100">
+                            <i class="bi bi-person-plus"></i> Create Account
+                        </button>
+                    </form>
                     
-                    <div class="row">
-                        <div class="col-md-6 mb-3">
-                            <label for="first_name" class="form-label">First Name</label>
-                            <input type="text" class="form-control" id="first_name" name="first_name" value="{{ form.first_name.value|default_if_none:'' }}" placeholder="Optional">
-                        </div>
-                        <div class="col-md-6 mb-3">
-                            <label for="last_name" class="form-label">Last Name</label>
-                            <input type="text" class="form-control" id="last_name" name="last_name" value="{{ form.last_name.value|default_if_none:'' }}" placeholder="Optional">
-                        </div>
-                    </div>
+                    <hr>
                     
-                    <div class="row">
-                        <div class="col-md-6 mb-3">
-                            <label for="password1" class="form-label">Password <span class="text-danger">*</span></label>
-                            <input type="password" class="form-control {% if form.password1.errors %}is-invalid{% endif %}" id="password1" name="password1" required>
-                            {% if form.password1.help_text %}<small class="form-text text-muted">{{ form.password1.help_text }}</small>{% endif %}
-                            {% if form.password1.errors %}<small class="text-danger">{{ form.password1.errors.0 }}</small>{% endif %}
-                        </div>
-                        <div class="col-md-6 mb-3">
-                            <label for="password2" class="form-label">Confirm Password <span class="text-danger">*</span></label>
-                            <input type="password" class="form-control {% if form.password2.errors %}is-invalid{% endif %}" id="password2" name="password2" required>
-                            {% if form.password2.errors %}<small class="text-danger">{{ form.password2.errors.0 }}</small>{% endif %}
-                        </div>
-                    </div>
-                    
-                    <button type="submit" class="btn btn-primary w-100">
-                        <i class="bi bi-person-plus"></i> Create Account
-                    </button>
-                </form>
-                
-                <hr>
-                
-                <p class="text-center mb-0">Already have an account? <a href="{% url 'accounts:login' %}">Login here</a></p>
+                    <p class="text-center mb-0">Already have an account? <a href="{% url 'accounts:login' %}">Login here</a></p>
+                </div>
             </div>
         </div>
     </div>

@@ -59,6 +59,19 @@
                 <h5><i class="bi bi-bar-chart"></i> Data Quality Report:</h5>
                 <ul>
                     <li><strong>Total Rows:</strong> {{ quality_report.total_rows }}</li>
+                    <li><strong>Invalid Dates:</strong> {{ quality_report.invalid_dates }}</li>
+                    <li><strong>Invalid Numeric Fields:</strong> {{ quality_report.invalid_numeric }}</li>
+                    {% if quality_report.missing_values %}
+                    <li><strong>Missing Values:</strong>
+                        <ul>
+                        {% for field, missing in quality_report.missing_values.items %}
+                            {% if missing > 0 %}
+                            <li>{{ field }}: {{ missing }}</li>
+                            {% endif %}
+                        {% endfor %}
+                        </ul>
+                    </li>
+                    {% endif %}
                     {% if quality_report.warnings %}
                     <li><strong>Warnings:</strong>
                         <ul>
