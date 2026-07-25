@@ -60,6 +60,9 @@
                     <a href="{% url 'results:export_pdf' analysis.id %}" class="btn btn-outline-danger">
                         <i class="bi bi-file-earmark-pdf"></i> PDF Report
                     </a>
+                    <button class="btn btn-outline-secondary" id="runSensitivityBtn" onclick="runSensitivity(event)">
+                        <i class="bi bi-shuffle"></i> Sensitivity
+                    </button>
                     <button class="btn btn-outline-secondary" onclick="window.print()">
                         <i class="bi bi-printer"></i> Print
                     </button>
@@ -67,10 +70,59 @@
                 <span class="badge bg-info fs-6 align-self-center">
                     <i class="bi bi-bar-chart"></i> {{ total_wells }} well(s) analyzed
                 </span>
+                {% if analysis.selected_wells %}
+                <span class="badge bg-secondary fs-6 align-self-center">
+                    <i class="bi bi-funnel"></i> Filtered to {{ analysis.selected_wells|length }} selected well(s)
+                </span>
+                {% endif %}
                 <a href="{% url 'analysis:compare_analyses' %}" class="btn btn-outline-info">
                     <i class="bi bi-arrows-collapse"></i> Compare With Another Run
                 </a>
             </div>
+
+            <div class="row g-3 mb-4">
+                <div class="col-md-3">
+                    <div class="card border-primary h-100">
+                        <div class="card-body">
+                            <div class="text-muted small">Top candidate</div>
+                            <div class="fw-bold fs-5">{{ well_trends.0.well_id|default:'N/A' }}</div>
+                            <div class="text-muted small">Rank #1 with the strongest screening signal</div>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-3">
+                    <div class="card border-warning h-100">
+                        <div class="card-body">
+                            <div class="text-muted small">Urgent intervention count</div>
+                            <div class="fw-bold fs-5">{% for trend in well_trends %}{% if trend.days_to_economic_limit is not None and trend.days_to_economic_limit <= 90 %}{% if not forloop.first %},{% endif %}{{ trend.well_id }}{% endif %}{% empty %}None{% endfor %}</div>
+                            <div class="text-muted small">Wells within 90 days of economic limit</div>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-3">
+                    <div class="card border-danger h-100">
+                        <div class="card-body">
+                            <div class="text-muted small">Liquid-loading risk</div>
+                            <div class="fw-bold fs-5">{% for trend in well_trends %}{% if trend.liquid_loading_flag %}{{ trend.well_id }}{% if not forloop.last %}, {% endif %}{% endif %}{% empty %}None{% endfor %}</div>
+                            <div class="text-muted small">Wells flagged as liquid-loaded</div>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-3">
+                    <div class="card border-success h-100">
+                        <div class="card-body">
+                            <div class="text-muted small">Completion outlook</div>
+                            <div class="fw-bold fs-5">{% for trend in well_trends %}{% if trend.completion_feasibility == 'feasible' %}{{ trend.well_id }}{% if not forloop.last %}, {% endif %}{% endif %}{% empty %}Pending{% endfor %}</div>
+                            <div class="text-muted small">Wells with a feasible completion pathway</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="alert alert-info mb-4">
+                <strong>Ranking rationale:</strong> wells were prioritized using the weighted trend signals from BSW, oil-rate decline, GLR decline, tubing-pressure behavior, plus liquid-loading, economic-limit, and completion-feasibility indicators.
+            </div>
+            <div class="alert alert-secondary d-none" id="sensitivityResultsCard"></div>
             
             <!-- Filter Controls -->
             <div class="row mb-3 g-2 no-print">
@@ -275,6 +327,54 @@
     .card-body {
         padding: 0.5rem !important;
     }
+</style>
+
+<script>
+function runSensitivity(event) {
+    event.preventDefault();
+    var card = document.getElementById('sensitivityResultsCard');
+    card.classList.remove('d-none', 'alert-danger', 'alert-success');
+    card.classList.add('alert-info');
+    card.innerHTML = '<strong>Running sensitivity analysis...</strong>';
+
+    fetch('{% url "analysis:run_sensitivity" analysis.id %}', {
+        headers: {
+            'X-Requested-With': 'XMLHttpRequest'
+        }
+    })
+    .then(function(response) {
+        return response.json();
+    })
+    .then(function(data) {
+        if (data.error) {
+            card.classList.remove('alert-info');
+            card.classList.add('alert-danger');
+            card.innerHTML = '<strong>Error:</strong> ' + data.error;
+            return;
+        }
+
+        var results = data.results || {};
+        var items = Object.keys(results).map(function(well) {
+            var info = results[well];
+            return '<li><strong>' + well + '</strong>: ' +
+                   info.confidence + ' confidence, ' +
+                   'mean rank ' + info.rank_mean + ', ' +
+                   'rank std ' + info.rank_std + '</li>';
+        });
+
+        card.classList.remove('alert-info');
+        card.classList.add('alert-success');
+        card.innerHTML = '<h5>Sensitivity Results</h5>' +
+                         '<p>Monte Carlo sensitivity analysis completed successfully.</p>' +
+                         '<ul>' + items.join('') + '</ul>';
+    })
+    .catch(function(error) {
+        card.classList.remove('alert-info');
+        card.classList.add('alert-danger');
+        card.innerHTML = '<strong>Error:</strong> ' + error;
+    });
+}
+</script>
     .table {
         font-size: 0.75rem !important;
     }

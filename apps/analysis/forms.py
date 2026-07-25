@@ -11,7 +11,7 @@ class AnalysisWeightsForm(forms.ModelForm):
     )
     
     outlier_method = forms.ChoiceField(
-        choices=[('iqr', 'IQR (1.5x)'), ('hampel', 'Hampel Filter')],
+        choices=[('iqr', 'IQR (1.5x)'), ('zscore', 'Z-score'), ('hampel', 'Hampel Filter')],
         initial='iqr',
         required=False,
         help_text="Outlier detection method",
@@ -96,6 +96,11 @@ class CompletionDataForm(forms.Form):
         min_value=0,
         help_text="Maximum surface injection pressure available (psi)",
         widget=forms.NumberInput(attrs={'class': 'form-control', 'placeholder': 'e.g., 2500'}),
+    )
+    completion_file = forms.FileField(
+        required=False,
+        help_text="Optional CSV file to bulk upload completion data. Columns: well_id, mandrel_depths, packer_depth, tubing_od, tubing_id, available_compression_pressure",
+        widget=forms.ClearableFileInput(attrs={'class': 'form-control'})
     )
     
     def clean_mandrel_depths(self):

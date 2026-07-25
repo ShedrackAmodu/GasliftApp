@@ -2,6 +2,7 @@ import statistics
 import logging
 import math
 import copy
+from datetime import datetime
 from .models import WellTrendAnalysis, AnalysisWeights
 
 logger = logging.getLogger(__name__)
@@ -83,6 +84,31 @@ class TrendAnalyzer:
     """Analyzes well trends using Mann-Kendall and Sen's slope"""
 
     @staticmethod
+    def _coerce_time_value(value):
+        """Convert date-like values to datetimes or numeric values when possible."""
+        if value is None:
+            return None
+        if hasattr(value, 'timestamp'):
+            return value
+        if isinstance(value, (int, float)):
+            return float(value)
+        if isinstance(value, str):
+            text = value.strip()
+            if not text:
+                return None
+            try:
+                return datetime.fromisoformat(text.replace('Z', '+00:00'))
+            except ValueError:
+                try:
+                    return datetime.strptime(text, '%Y-%m-%d')
+                except ValueError:
+                    try:
+                        return float(text)
+                    except ValueError:
+                        return None
+        return value
+
+    @staticmethod
     def _extract_series(data_rows, field):
         """
         Extract a numeric list from a list of dict rows for a given field.
@@ -103,7 +129,7 @@ class TrendAnalyzer:
     @staticmethod
     def filter_outliers(series, method='iqr', threshold=1.5):
         """
-        Filter outliers from a numeric series using IQR or Hampel filter.
+        Filter outliers from a numeric series using IQR, Z-score, or Hampel filter.
         Returns: (cleaned_series, rejected_indices)
         """
         import numpy as np
@@ -112,6 +138,7 @@ class TrendAnalyzer:
         
         # Convert to numpy array, preserving None positions
         arr = np.array([x if x is not None else np.nan for x in series], dtype=float)
+        method = str(method).strip().lower()
         
         if method == 'iqr':
             # IQR method
@@ -130,11 +157,29 @@ class TrendAnalyzer:
                 else:
                     cleaned.append(float(val))
         
+        elif method == 'zscore':
+            # Z-score method
+            mean = np.nanmean(arr)
+            std = np.nanstd(arr)
+            if std == 0 or np.isnan(std):
+                std = 1e-10
+            lower_bound = mean - threshold * std
+            upper_bound = mean + threshold * std
+            
+            for idx, val in enumerate(arr):
+                if np.isnan(val):
+                    cleaned.append(None)
+                elif val < lower_bound or val > upper_bound:
+                    rejected_indices.append(idx)
+                    cleaned.append(None)
+                else:
+                    cleaned.append(float(val))
+        
         elif method == 'hampel':
             # Hampel filter (median absolute deviation)
             median = np.nanmedian(arr)
             mad = np.nanmedian(np.abs(arr - median))
-            if mad == 0:
+            if mad == 0 or np.isnan(mad):
                 mad = 1e-10  # avoid division by zero
             threshold_mad = threshold * mad * 1.4826  # 1.4826 for normal distribution
             
@@ -146,6 +191,11 @@ class TrendAnalyzer:
                     cleaned.append(None)
                 else:
                     cleaned.append(float(val))
+        
+        else:
+            # Fallback: no filtering if method is unknown
+            for val in arr:
+                cleaned.append(None if np.isnan(val) else float(val))
         
         return cleaned, rejected_indices
 
@@ -180,12 +230,15 @@ class TrendAnalyzer:
 
         x_vals = []
         y_vals = []
-        first_time = clean_pairs[0][0]
+        first_time = TrendAnalyzer._coerce_time_value(clean_pairs[0][0])
         for t, v in clean_pairs:
-            if hasattr(t, 'timestamp'):
-                x_vals.append((t - first_time).total_seconds())
+            t_val = TrendAnalyzer._coerce_time_value(t)
+            if t_val is None:
+                continue
+            if hasattr(t_val, 'timestamp') and hasattr(first_time, 'timestamp'):
+                x_vals.append((t_val - first_time).total_seconds())
             else:
-                x_vals.append(float(t))
+                x_vals.append(float(t_val))
             y_vals.append(v)
 
         tau, p_value = _kendall_tau(x_vals, y_vals)
@@ -219,10 +272,12 @@ class TrendAnalyzer:
             x_i, y_i = clean_pairs[i]
             for j in range(i + 1, len(clean_pairs)):
                 x_j, y_j = clean_pairs[j]
-                if hasattr(x_i, 'timestamp') and hasattr(x_j, 'timestamp'):
-                    delta_t = (x_j - x_i).total_seconds() / 86400.0
+                x_i_val = TrendAnalyzer._coerce_time_value(x_i)
+                x_j_val = TrendAnalyzer._coerce_time_value(x_j)
+                if hasattr(x_i_val, 'timestamp') and hasattr(x_j_val, 'timestamp'):
+                    delta_t = (x_j_val - x_i_val).total_seconds() / 86400.0
                 else:
-                    delta_t = float(x_j) - float(x_i)
+                    delta_t = float(x_j_val) - float(x_i_val)
                 if delta_t == 0:
                     continue
                 slopes.append((y_j - y_i) / delta_t)
@@ -264,7 +319,7 @@ class TrendAnalyzer:
         Parameters:
             base_choke_size: Choke size for normalization (e.g., "24/64")
             choke_exponent: Choke normalization exponent
-            outlier_method: 'iqr' or 'hampel'
+            outlier_method: 'iqr', 'zscore', or 'hampel'
             outlier_threshold: Multiplier for outlier detection
 
         Returns: trend analysis dict

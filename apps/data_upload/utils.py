@@ -208,6 +208,8 @@ class DataProcessor:
 
             quality_report = {
                 'total_rows': len(mapped_rows),
+                'columns_detected': list(rows[0].keys()) if rows else [],
+                'unique_wells': sorted({str(r.get('Well')) for r in mapped_rows if r.get('Well') not in [None, '']}),
                 'missing_values': {},
                 'data_types': {},
                 'warnings': [],

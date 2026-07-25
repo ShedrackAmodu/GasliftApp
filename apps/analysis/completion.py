@@ -46,8 +46,13 @@ class CompletionFeasibilityChecker:
             
             liquid_column = max(0, mandrel_depth_ft - packer_depth_ft) * fluid_gradient_psi_per_ft
             
-            # Add friction and wellhead pressure
-            total_pressure = gas_column + liquid_column + CompletionFeasibilityChecker.FRICTION_LOSS_PSI + CompletionFeasibilityChecker.WELLHEAD_PRESSURE_PSI
+            # Add friction and wellhead pressure. Smaller tubing increases friction losses.
+            tubing_id = tubing_id_inch or 2.875
+            if tubing_id is None or tubing_id <= 0:
+                tubing_id = 2.875
+            friction_factor = (2.875 / tubing_id) ** 2
+            friction_loss = CompletionFeasibilityChecker.FRICTION_LOSS_PSI * friction_factor
+            total_pressure = gas_column + liquid_column + friction_loss + CompletionFeasibilityChecker.WELLHEAD_PRESSURE_PSI
             
             return round(total_pressure, 2)
         except Exception:

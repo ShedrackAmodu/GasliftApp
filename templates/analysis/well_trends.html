@@ -52,21 +52,41 @@
                 <i class="bi bi-exclamation-triangle"></i> {{ error }}
             </div>
             {% else %}
-            <p class="lead">Review well performance trends before analysis</p>
-            
-            <div class="mb-3">
-                <label for="wellSelect" class="form-label"><strong>Select a Well:</strong></label>
-                {% if wells %}
-                <select class="form-select" id="wellSelect" onchange="loadWellData()">
-                    <option value="">-- Select Well --</option>
-                    {% for well in wells %}
-                    <option value="{{ well }}">{{ well }}</option>
-                    {% endfor %}
-                </select>
-                <small class="text-muted">{{ wells|length }} well(s) found in your data</small>
-                {% else %}
-                <div class="alert alert-warning">No wells found in the data.</div>
-                {% endif %}
+            <p class="lead">Review well performance trends before running the full analysis.</p>
+
+            <div class="row mb-3">
+                <div class="col-md-6">
+                    <label for="wellSelect" class="form-label"><strong>View Well Trends:</strong></label>
+                    {% if wells %}
+                    <select class="form-select" id="wellSelect">
+                        <option value="">-- Select Well to View --</option>
+                        {% for well in wells %}
+                        <option value="{{ well }}">{{ well }}</option>
+                        {% endfor %}
+                    </select>
+                    {% else %}
+                    <div class="alert alert-warning">No wells found in the data.</div>
+                    {% endif %}
+                </div>
+                <div class="col-md-6">
+                    <label class="form-label"><strong>Select Wells for Analysis:</strong></label>
+                    <div class="border rounded p-2" style="max-height: 200px; overflow-y: auto;">
+                        {% if wells %}
+                        <div class="mb-2">
+                            <button type="button" class="btn btn-sm btn-outline-primary me-2" onclick="selectAllWells(true)">Select All</button>
+                            <button type="button" class="btn btn-sm btn-outline-secondary" onclick="selectAllWells(false)">Deselect All</button>
+                            <span class="ms-2 text-muted small" id="selectedCount">{{ wells|length }} / {{ wells|length }} selected</span>
+                        </div>
+                        {% for well in wells %}
+                        <div class="form-check form-check-inline">
+                            <input class="form-check-input well-checkbox" type="checkbox" value="{{ well }}" id="well_{{ forloop.counter }}" checked>
+                            <label class="form-check-label" for="well_{{ forloop.counter }}">{{ well }}</label>
+                        </div>
+                        {% endfor %}
+                        {% endif %}
+                    </div>
+                    <small class="text-muted">{{ wells|length }} well(s) found in your data</small>
+                </div>
             </div>
 
             <div id="wellInfo" class="alert alert-secondary" style="display: none;">
@@ -82,14 +102,14 @@
                     </div>
                 </div>
             </div>
-            
+
             <div id="chartsContainer" style="display: none;">
                 <div class="alert alert-info mb-3">
-                    <i class="bi bi-info-circle"></i> The charts below show trends for the selected well. 
+                    <i class="bi bi-info-circle"></i> The charts below show trends for the selected well.
                     <span class="text-danger">Rising</span> BSW or <span class="text-warning">falling</span> Oil Rate, GLR, or Tubing Pressure may indicate a gas lift candidate.
                     <span id="normalizationNote" class="text-success d-none">Data normalized to base choke size.</span>
                 </div>
-                
+
                 <div class="row">
                     <div class="col-12 col-md-6 mb-3">
                         <div class="card">
@@ -130,7 +150,7 @@
                         </div>
                     </div>
                 </div>
-                
+
                 <div class="form-check form-switch mt-2">
                     <input class="form-check-input" type="checkbox" id="showRejected" onchange="toggleRejectedPoints()">
                     <label class="form-check-label" for="showRejected">
@@ -138,7 +158,7 @@
                     </label>
                 </div>
             </div>
-            
+
             <div class="alert alert-secondary mt-3">
                 <i class="bi bi-arrow-right-circle"></i>
                 <strong>Ready?</strong> Click "Run Analysis" when you are ready to process the selected wells.
@@ -156,7 +176,14 @@
                 <a href="{% url 'analysis:upload_completion' analysis.id %}" class="btn btn-info">
                     <i class="bi bi-diagram-3"></i> Upload Completion Data
                 </a>
-                <a href="{% url 'analysis:adjust_weights' upload.id %}" class="btn btn-secondary">
+                <form id="bulkCompletionForm" method="post" action="{% url 'analysis:upload_completion' analysis.id %}" enctype="multipart/form-data" class="d-inline">
+                    {% csrf_token %}
+                    <input type="file" name="completion_file" id="bulkCompletionFile" accept=".csv" style="display:none"> 
+                    <button type="button" id="bulkUploadBtn" class="btn btn-outline-info">
+                        <i class="bi bi-upload"></i> Bulk Upload CSV
+                    </button>
+                </form>
+                <a href="{% url 'analysis:adjust_weights' analysis.upload.id %}" class="btn btn-secondary">
                     <i class="bi bi-arrow-left"></i> Back to Weights
                 </a>
             </div>
@@ -169,122 +196,143 @@
 <script>
 let bswChart, oilChart, glrChart, tpChart;
 
+// Map of chart objects for syncing
+const chartMap = {};
+
 function loadWellData() {
     const well = document.getElementById('wellSelect').value;
     if (!well) return;
-    
+
     showLoading('Loading well data...');
-    
+
     fetch(`{% url 'analysis:get_well_data' analysis.id 'WELLNAME' %}`.replace('WELLNAME', encodeURIComponent(well)))
         .then(response => response.json())
         .then(data => {
             hideLoading();
             document.getElementById('chartsContainer').style.display = 'block';
-            
-            const commonOptions = {
-                responsive: true,
-                maintainAspectRatio: true,
-                plugins: {
-                    legend: { display: true }
-                },
-                scales: {
-                    y: { beginAtZero: false }
-                }
-            };
-            
+
             // Show well info
             if (data.data_quality_score !== undefined) {
                 document.getElementById('wellInfo').style.display = 'block';
                 document.getElementById('dataQualityScore').textContent = data.data_quality_score;
-                document.getElementById('outlierCount').textContent = Object.values(data.rejected_indices || {}).flat().length;
+                const allRejected = Object.values(data.rejected_indices || {}).flat();
+                document.getElementById('outlierCount').textContent = allRejected.length;
                 document.getElementById('chokeNormalized').textContent = data.is_choke_normalized ? 'Yes' : 'No';
-                document.getElementById('baseChoke').textContent = data.is_choke_normalized ? '{{ weights.base_choke_size|default:"Not set" }}' : '{{ weights.base_choke_size|default:"Not set" }}';
-                
+                document.getElementById('baseChoke').textContent = '{{ weights.base_choke_size|default:"Not set" }}';
+
                 if (data.is_choke_normalized) {
                     document.getElementById('normalizationNote').classList.remove('d-none');
                 }
             }
 
+            const commonOptions = {
+                responsive: true,
+                maintainAspectRatio: true,
+                plugins: {
+                    legend: { display: true },
+                    tooltip: {
+                        mode: 'index',
+                        intersect: false,
+                        callbacks: {
+                            title: function(items) {
+                                if (items.length > 0) {
+                                    return 'Date: ' + items[0].label;
+                                }
+                                return '';
+                            },
+                            label: function(context) {
+                                let label = context.dataset.label || '';
+                                let val = context.parsed.y;
+                                if (val !== null && val !== undefined) {
+                                    label += ': ' + val.toFixed(2);
+                                } else {
+                                    label += ': (no data)';
+                                }
+                                return label;
+                            }
+                        }
+                    }
+                },
+                scales: {
+                    x: {
+                        ticks: { maxTicksLimit: 10 }
+                    },
+                    y: { beginAtZero: false }
+                },
+                hover: {
+                    mode: 'index',
+                    intersect: false
+                }
+            };
+
             const ctx1 = document.getElementById('bswChart').getContext('2d');
             if (bswChart) bswChart.destroy();
-            
-            // Prepare datasets with rejected points
             const bswDatasets = prepareChartData(data.dates, data.bsw, data.rejected_indices?.bsw || [], '#dc3545', 'rgba(220, 53, 69, 0.1)', 'BS&W (%)');
-            
             bswChart = new Chart(ctx1, {
                 type: 'line',
-                data: {
-                    labels: data.dates,
-                    datasets: bswDatasets
-                },
+                data: { labels: data.dates, datasets: bswDatasets },
                 options: Object.assign({}, commonOptions, {
-                    plugins: { 
+                    plugins: {
                         title: { display: true, text: 'BS&W (Water Cut) Trend', color: '#dc3545', font: { weight: 'bold' } },
                         filler: { propagate: false }
                     }
                 })
             });
-            
+            chartMap.bsw = bswChart;
+
             const ctx2 = document.getElementById('oilChart').getContext('2d');
             if (oilChart) oilChart.destroy();
-            
             const oilDatasets = prepareChartData(data.dates, data.oil_rate, data.rejected_indices?.oil_rate || [], '#28a745', 'rgba(40, 167, 69, 0.1)', 'Oil Rate (bopd)');
-            
             oilChart = new Chart(ctx2, {
                 type: 'line',
-                data: {
-                    labels: data.dates,
-                    datasets: oilDatasets
-                },
+                data: { labels: data.dates, datasets: oilDatasets },
                 options: Object.assign({}, commonOptions, {
-                    plugins: { 
+                    plugins: {
                         title: { display: true, text: 'Oil Production Trend', color: '#28a745', font: { weight: 'bold' } },
                         filler: { propagate: false }
                     }
                 })
             });
-            
+            chartMap.oil = oilChart;
+
             const ctx3 = document.getElementById('glrChart').getContext('2d');
             if (glrChart) glrChart.destroy();
-            
             const glrDatasets = prepareChartData(data.dates, data.glr, data.rejected_indices?.glr || [], '#ffc107', 'rgba(255, 193, 7, 0.1)', 'GLR (scf/bbl)');
-            
             glrChart = new Chart(ctx3, {
                 type: 'line',
-                data: {
-                    labels: data.dates,
-                    datasets: glrDatasets
-                },
+                data: { labels: data.dates, datasets: glrDatasets },
                 options: Object.assign({}, commonOptions, {
-                    plugins: { 
+                    plugins: {
                         title: { display: true, text: 'Gas Liquid Ratio Trend', color: '#856404', font: { weight: 'bold' } },
                         filler: { propagate: false }
                     }
                 })
             });
-            
+            chartMap.glr = glrChart;
+
             const ctx4 = document.getElementById('tpChart').getContext('2d');
             if (tpChart) tpChart.destroy();
-            
             const tpDatasets = prepareChartData(data.dates, data.tubing_pressure, data.rejected_indices?.tp || [], '#17a2b8', 'rgba(23, 162, 184, 0.1)', 'Tubing Pressure (psi)');
-            
             tpChart = new Chart(ctx4, {
                 type: 'line',
-                data: {
-                    labels: data.dates,
-                    datasets: tpDatasets
-                },
+                data: { labels: data.dates, datasets: tpDatasets },
                 options: Object.assign({}, commonOptions, {
-                    plugins: { 
+                    plugins: {
                         title: { display: true, text: 'Tubing Pressure Trend', color: '#17a2b8', font: { weight: 'bold' } },
                         filler: { propagate: false }
                     }
                 })
             });
-            
+            chartMap.tp = tpChart;
+
+            // Synchronize tooltips across all charts
+            setupChartSync();
+
             // Store rejected indices globally for toggle
             window.currentRejectedIndices = data.rejected_indices || {};
             window.showRejectedPoints = false;
+            // Reset the toggle checkbox
+            document.getElementById('showRejected').checked = false;
         })
         .catch(error => {
             hideLoading();
@@ -292,10 +340,53 @@ function loadWellData() {
         });
 }
 
+// Synchronize hover/tooltip across all four charts
+function setupChartSync() {
+    const allCharts = [bswChart, oilChart, glrChart, tpChart];
+
+    allCharts.forEach(chart => {
+        if (!chart) return;
+        const canvas = chart.canvas;
+
+        canvas.removeEventListener('mousemove', chart._syncHandler);
+        canvas.removeEventListener('mouseleave', chart._leaveHandler);
+
+        chart._syncHandler = function(evt) {
+            try {
+                const points = chart.getElementsAtEventForMode(evt, 'index', { intersect: false }, false);
+                if (!points || points.length === 0) return;
+                const idx = points[0].index;
+                allCharts.forEach(c => {
+                    if (c && c !== chart) {
+                        c.setActiveElements([{ datasetIndex: 0, index: idx }]);
+                        c.tooltip.setActiveElements([{ datasetIndex: 0, index: idx }], { x: evt.clientX, y: evt.clientY });
+                        c.draw();
+                    }
+                });
+            } catch (e) {
+                // ignore
+            }
+        };
+
+        chart._leaveHandler = function() {
+            allCharts.forEach(c => {
+                if (c) {
+                    c.setActiveElements([]);
+                    c.tooltip.setActiveElements([]);
+                    c.draw();
+                }
+            });
+        };
+
+        canvas.addEventListener('mousemove', chart._syncHandler);
+        canvas.addEventListener('mouseleave', chart._leaveHandler);
+    });
+}
+
 // Helper function to prepare chart data with rejected points
 function prepareChartData(dates, values, rejectedIndices, borderColor, backgroundColor, label) {
     const datasets = [];
-    
+
     // Main data line (non-rejected points)
     const mainData = values.map((v, i) => rejectedIndices.includes(i) ? null : v);
     datasets.push({
@@ -305,9 +396,12 @@ function prepareChartData(dates, values, rejectedIndices, borderColor, backgroun
         backgroundColor: backgroundColor,
         tension: 0.4,
         fill: true,
-        spanGaps: false
+        spanGaps: false,
+        pointRadius: mainData.map((v, i) => v === null ? 0 : 3),
+        pointBackgroundColor: borderColor,
+        pointHoverRadius: 5
     });
-    
+
     // Rejected points (hidden by default)
     const rejectedData = values.map((v, i) => rejectedIndices.includes(i) ? v : null);
     datasets.push({
@@ -317,21 +411,22 @@ function prepareChartData(dates, values, rejectedIndices, borderColor, backgroun
         backgroundColor: 'rgba(255, 99, 132, 0.5)',
         pointRadius: 6,
         pointStyle: 'crossRot',
+        pointBackgroundColor: 'rgba(255, 99, 132, 0.8)',
         showLine: false,
         hidden: true
     });
-    
+
     return datasets;
 }
 
 // Toggle rejected points visibility
 function toggleRejectedPoints() {
     const checkbox = document.getElementById('showRejected');
-    window.showRejectedPoints = checkbox.checked;
-    
+    const show = checkbox.checked;
+
     [bswChart, oilChart, glrChart, tpChart].forEach(chart => {
         if (chart && chart.data.datasets.length > 1) {
-            chart.setDatasetVisibility(1, checkbox.checked);
+            chart.setDatasetVisibility(1, show);
             chart.update();
         }
     });
@@ -352,6 +447,29 @@ function getCookie(name) {
     return cookieValue;
 }
 
+// Well selection functions
+function selectAllWells(select) {
+    document.querySelectorAll('.well-checkbox').forEach(cb => cb.checked = select);
+    updateSelectedCount();
+}
+
+function updateSelectedCount() {
+    const total = document.querySelectorAll('.well-checkbox').length;
+    const selected = document.querySelectorAll('.well-checkbox:checked').length;
+    document.getElementById('selectedCount').textContent = `${selected} / ${total} selected`;
+}
+
+// Update count on checkbox change
+document.addEventListener('DOMContentLoaded', function() {
+    document.querySelectorAll('.well-checkbox').forEach(cb => {
+        cb.addEventListener('change', updateSelectedCount);
+    });
+    updateSelectedCount();
+
+    // Load well data on selection change
+    document.getElementById('wellSelect').addEventListener('change', loadWellData);
+});
+
 const runAnalysisForm = document.getElementById('runAnalysisForm');
 const runAnalysisBtn = document.getElementById('runAnalysisBtn');
 const analysisStatus = document.getElementById('analysisStatus');
@@ -359,13 +477,31 @@ const analysisStatus = document.getElementById('analysisStatus');
 if (runAnalysisForm) {
     runAnalysisForm.addEventListener('submit', function(e) {
         e.preventDefault();
+
+        // Collect selected wells
+        const selectedWells = [];
+        document.querySelectorAll('.well-checkbox:checked').forEach(cb => {
+            selectedWells.push(cb.value);
+        });
+
+        if (selectedWells.length === 0) {
+            analysisStatus.style.display = 'block';
+            analysisStatus.className = 'alert alert-warning';
+            analysisStatus.innerHTML = '<i class="bi bi-exclamation-triangle"></i> Please select at least one well to analyze.';
+            return;
+        }
+
         runAnalysisBtn.disabled = true;
         runAnalysisBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Processing...';
         analysisStatus.style.display = 'block';
         analysisStatus.className = 'alert alert-info';
-        analysisStatus.innerHTML = '<i class="bi bi-hourglass-split"></i> Running analysis. This may take a moment...';
+        analysisStatus.innerHTML = '<i class="bi bi-hourglass-split"></i> Running analysis on ' + selectedWells.length + ' selected well(s). This may take a moment...';
 
         showLoading('Running analysis...');
+
+        const formData = new FormData();
+        formData.append('csrfmiddlewaretoken', getCookie('csrftoken'));
+        formData.append('selected_wells', JSON.stringify(selectedWells));
 
         fetch(this.action, {
             method: 'POST',
@@ -373,13 +509,14 @@ if (runAnalysisForm) {
                 'X-CSRFToken': getCookie('csrftoken'),
                 'X-Requested-With': 'XMLHttpRequest'
             },
+            body: formData,
             credentials: 'same-origin'
         })
         .then(response => response.json())
         .then(data => {
             hideLoading();
             if (data.status === 'success') {
-                window.location.href = `{% url 'results:view_results' analysis.id %}`;
+                window.location.href = '{% url "results:view_results" analysis.id %}';
             } else {
                 analysisStatus.className = 'alert alert-danger';
                 analysisStatus.innerHTML = '<i class="bi bi-exclamation-triangle"></i> Error: ' + data.error;
@@ -398,3 +535,22 @@ if (runAnalysisForm) {
 }
 </script>
 {% endblock %}
+
+<script>
+// Bulk completion CSV upload behavior
+document.addEventListener('DOMContentLoaded', function() {
+    const bulkBtn = document.getElementById('bulkUploadBtn');
+    const fileInput = document.getElementById('bulkCompletionFile');
+    const form = document.getElementById('bulkCompletionForm');
+
+    if (bulkBtn && fileInput && form) {
+        bulkBtn.addEventListener('click', () => fileInput.click());
+        fileInput.addEventListener('change', () => {
+            if (fileInput.files.length === 0) return;
+            // simple confirmation
+            if (!confirm('Upload selected CSV and process completion records?')) return;
+            form.submit();
+        });
+    }
+});
+</script>

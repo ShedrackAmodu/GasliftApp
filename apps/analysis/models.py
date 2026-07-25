@@ -17,6 +17,7 @@ class AnalysisSession(models.Model):
     upload = models.ForeignKey(DataUpload, on_delete=models.CASCADE, related_name='analysis_sessions')
     name = models.CharField(max_length=255, blank=True)
     status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='pending')
+    selected_wells = models.JSONField(default=list, blank=True, help_text="List of well IDs selected for analysis. Empty means all wells.")
     created_at = models.DateTimeField(auto_now_add=True)
     started_at = models.DateTimeField(null=True, blank=True)
     completed_at = models.DateTimeField(null=True, blank=True)
@@ -135,7 +136,7 @@ class WellTrendAnalysis(models.Model):
     # Choke normalization data (for charts)
     original_values = models.JSONField(default=dict, blank=True, help_text="Original pre-normalization values")
     corrected_values = models.JSONField(default=dict, blank=True, help_text="Corrected values after normalization")
-    rejected_indices = models.JSONField(default=list, blank=True, help_text="Indices of rejected outlier points")
+    rejected_indices = models.JSONField(default=dict, blank=True, help_text="Indices of rejected outlier points")
     
     # Reservoir and IPR data
     static_reservoir_pressure = models.FloatField(null=True, blank=True, help_text="Static reservoir pressure (psi)")

@@ -8,8 +8,17 @@ A Django web app for identifying gas lift candidate wells using well test data.
 - Upload CSV or Excel well test data
 - Map columns to required fields
 - Preview uploaded data
-- Run trend analysis and score candidate wells
-- Export results to Excel or CSV
+- Run trend analysis and score candidate wells using weighted heuristics
+- Apply optional PVT-based liquid-loading screening and completion-feasibility checks
+- Export results to Excel, CSV, or PDF summary
+
+## Current maturity
+
+The workflow is functional for screening and preliminary candidate review, but several advanced capabilities are prototype-level rather than fully engineering-ready. In particular:
+
+- Gas allocation uses a simple greedy heuristic rather than a full optimization engine.
+- Liquid-loading and completion-feasibility checks are basic screening tools.
+- Monte Carlo sensitivity analysis exists but is not deeply integrated into the decision workflow.
 
 ## Quick Start
 

@@ -17,7 +17,7 @@
     <div class="card">
         <div class="card-header d-flex justify-content-between align-items-center flex-wrap gap-2">
             <h3><i class="bi bi-book"></i> User Manual – Gas Lift Opportunity Automation System</h3>
-            <a href="{% url 'download_manual_pdf' %}?inline=1" class="btn btn-light btn-sm" id="downloadPdfBtn" target="_blank" rel="noopener noreferrer">
+            <a href="{% url 'user_manual_print' %}" class="btn btn-light btn-sm" id="downloadPdfBtn" target="_blank" rel="noopener noreferrer">
                 <i class="bi bi-filetype-pdf"></i> View PDF
             </a>
         </div>
@@ -73,14 +73,14 @@
                             <div class="feature-card p-3 border rounded-3 h-100">
                                 <i class="bi bi-trophy text-primary fs-4"></i>
                                 <h6 class="mt-2">Candidate Ranking</h6>
-                                <p class="mb-0 small">Multi-parameter weighted scoring with gas allocation optimization</p>
+                                <p class="mb-0 small">Weighted scoring with optional gas-allocation heuristics</p>
                             </div>
                         </div>
                         <div class="col-md-6">
                             <div class="feature-card p-3 border rounded-3 h-100">
                                 <i class="bi bi-droplet text-primary fs-4"></i>
                                 <h6 class="mt-2">Liquid Loading Diagnostics</h6>
-                                <p class="mb-0 small">PVT-based critical velocity analysis for liquid loading detection</p>
+                                <p class="mb-0 small">Optional PVT-based screening for liquid loading risk</p>
                             </div>
                         </div>
                         <div class="col-md-6">
@@ -101,7 +101,7 @@
                         <div class="step completed"><div class="step-circle">5</div><div class="step-label">Trends</div></div>
                         <div class="step completed"><div class="step-circle">6</div><div class="step-label">Results</div></div>
                     </div>
-                    <p>The typical workflow consists of <strong>6 main steps</strong> from data upload to ranked results, with optional advanced analysis options available along the way.</p>
+                    <p>The typical workflow consists of <strong>6 main steps</strong> from data upload to ranked results, with optional PVT, completion-data, sensitivity, and export steps available along the way.</p>
                 </div>
             </section>
 
@@ -252,7 +252,7 @@
 
                     <h5 class="mt-3">Advanced Options</h5>
                     <ul>
-                        <li><strong>Gas Constraint (MMscf/d)</strong> — Available lift gas volume for knapsack optimization. If set, the system will allocate gas optimally across candidates.</li>
+                        <li><strong>Gas Constraint (MMscf/d)</strong> — Available lift gas volume for a simple greedy gas-allocation heuristic. If set, the system will rank wells by efficiency and allocate gas within the constraint.</li>
                         <li><strong>Base Choke Size</strong> — Choke size for normalization across all wells</li>
                         <li><strong>Outlier Detection</strong> — Method (IQR, Z-score) and threshold for outlier removal</li>
                     </ul>
@@ -415,7 +415,7 @@
                     </ul>
 
                     <h5 class="mt-3">Gas Allocation Optimization (Knapsack)</h5>
-                    <p>When a gas constraint is specified, the system applies a greedy knapsack algorithm to allocate available lift gas across candidates to maximize incremental oil gain. Wells are ranked by efficiency (candidate score per unit gas).</p>
+                    <p>When a gas constraint is specified, the system applies a simple greedy heuristic to allocate available lift gas across candidates. Wells are ranked by efficiency (candidate score per unit gas) as a prototype-level allocation aid.</p>
 
                     <h5 class="mt-3">Economic Limit Forecasting</h5>
                     <p>Using the economic oil rate limit and Sen's slope, the system estimates:</p>
@@ -425,7 +425,63 @@
                     </ul>
 
                     <h5 class="mt-3">Completion Feasibility</h5>
-                    <p>With completion data uploaded, the system checks whether available compression pressure is sufficient for gas lift at the deepest mandrel, considering hydrostatic and friction losses.</p>
+                    <p>With completion data uploaded, the system performs a basic feasibility screening to assess whether available compression pressure is sufficient for gas lift at the deepest mandrel using simplified pressure-loss assumptions.</p>
+
+                    <div class="alert alert-warning mt-4">
+                        <h5 class="fw-bold"><i class="bi bi-exclamation-triangle"></i> Implementation Maturity at a Glance</h5>
+                        <p class="mb-3">The workflow now covers the core screening path end to end: upload, mapping, preview, weighting, trend review, analysis execution, result review, and export. Advanced capabilities such as PVT-based liquid loading checks, completion-feasibility screening, Monte Carlo sensitivity, and PDF reporting are available as supporting features for preliminary engineering review.</p>
+                        <div class="table-responsive">
+                            <table class="table table-sm table-bordered mb-0">
+                                <thead>
+                                    <tr>
+                                        <th scope="col">Capability</th>
+                                        <th scope="col">Manual promise</th>
+                                        <th scope="col">Current implementation</th>
+                                        <th scope="col">Current status</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <tr>
+                                        <td>Scoring and ranking</td>
+                                        <td>Engineering-grade candidate prioritization</td>
+                                        <td>Weighted heuristic scoring with simple ranking logic</td>
+                                        <td>Prototype / basic</td>
+                                    </tr>
+                                    <tr>
+                                        <td>Liquid loading diagnostics</td>
+                                        <td>Field-grade liquid loading analysis</td>
+                                        <td>Basic PVT-based critical velocity checks</td>
+                                        <td>Prototype / basic</td>
+                                    </tr>
+                                    <tr>
+                                        <td>Completion feasibility</td>
+                                        <td>Detailed completion suitability assessment</td>
+                                        <td>Simplified pressure and hardware feasibility checks</td>
+                                        <td>Prototype / basic</td>
+                                    </tr>
+                                    <tr>
+                                        <td>Gas allocation optimization</td>
+                                        <td>Full gas allocation workflow</td>
+                                        <td>Greedy knapsack allocation based on simple efficiency heuristics</td>
+                                        <td>Prototype / basic</td>
+                                    </tr>
+                                    <tr>
+                                        <td>Sensitivity analysis</td>
+                                        <td>Deep robustness and uncertainty analysis</td>
+                                        <td>Monte Carlo simulation exists but is not fully integrated into the decision workflow</td>
+                                        <td>Prototype / partial</td>
+                                    </tr>
+                                    <tr>
+                                        <td>Executive reporting</td>
+                                        <td>Management-ready executive-grade reporting</td>
+                                        <td>HTML and PDF summary reports are available, but remain presentation-oriented</td>
+                                        <td>Basic / presentation-level</td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                        <p class="mt-3 mb-0"><strong>Bottom line:</strong> the workflow is useful for screening, demo use, and preliminary candidate review, but it should be treated as a decision-support prototype rather than a fully validated engineering-ready deployment tool.</p>
+                    </div>
                 </div>
             </section>
 

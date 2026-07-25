@@ -138,7 +138,7 @@ class LiquidLoadingDiagnostics:
         self.pvt = pvt_properties
         self.tubing_diameter = tubing_diameter_inch
     
-    def analyze_well(self, avg_glr_scf_bbl, avg_tubing_pressure_psi, gas_rate_mmscfd=None):
+    def analyze_well(self, avg_glr_scf_bbl, avg_tubing_pressure_psi, gas_rate_mmscfd=None, oil_rate_bopd=None):
         """
         Analyze if well is liquid loaded
         
@@ -146,6 +146,7 @@ class LiquidLoadingDiagnostics:
             avg_glr_scf_bbl: Average GLR
             avg_tubing_pressure_psi: Average tubing pressure (psi)
             gas_rate_mmscfd: Gas rate (optional, overrides calculation from GLR)
+            oil_rate_bopd: Oil rate used to estimate gas rate from GLR when gas rate is not provided
         
         Returns:
             dict with liquid loading diagnosis
@@ -171,24 +172,34 @@ class LiquidLoadingDiagnostics:
             result['critical_velocity'] = v_critical
             
             # Actual gas velocity calculation
-            if gas_rate_mmscfd is not None and gas_rate_mmscfd > 0:
-                v_actual = self.pvt.calculate_actual_gas_velocity(
-                    gas_rate_mmscfd,
-                    self.tubing_diameter,
-                    avg_tubing_pressure_psi
-                )
-                result['actual_velocity'] = v_actual
+            estimated_gas_rate = None
+            if gas_rate_mmscfd is None and oil_rate_bopd is not None and oil_rate_bopd > 0 and avg_glr_scf_bbl is not None and avg_glr_scf_bbl > 0:
+                estimated_gas_rate = (avg_glr_scf_bbl * oil_rate_bopd) / 1_000_000.0
+
+            if gas_rate_mmscfd is None:
+                gas_rate_mmscfd = estimated_gas_rate if estimated_gas_rate and estimated_gas_rate > 0 else 2.0
+
+            result['gas_rate_mmscfd'] = gas_rate_mmscfd
+            result['actual_glr'] = avg_glr_scf_bbl
+
+            v_actual = self.pvt.calculate_actual_gas_velocity(
+                gas_rate_mmscfd,
+                self.tubing_diameter,
+                avg_tubing_pressure_psi
+            )
+            result['actual_velocity'] = v_actual
+
+            if v_actual > 0 and v_critical > 0:
+                result['gas_utilization_efficiency'] = min(100.0, max(0.0, (v_actual / v_critical) * 100.0))
+                result['critical_glr'] = round(avg_glr_scf_bbl * (v_critical / max(v_actual, 1e-6)), 2) if avg_glr_scf_bbl is not None else None
             else:
-                # Estimate gas rate from GLR (GLR = gas rate / oil rate)
-                # Assume oil rate ~ 100 bopd for estimation, or use typical values
-                estimated_gas_rate = 2.0  # MMscf/d (placeholder)
-                v_actual = self.pvt.calculate_actual_gas_velocity(
-                    estimated_gas_rate,
-                    self.tubing_diameter,
-                    avg_tubing_pressure_psi
-                )
-                result['actual_velocity'] = v_actual
-            
+                result['critical_glr'] = avg_glr_scf_bbl
+
+            if gas_rate_mmscfd and gas_rate_mmscfd > 0:
+                result['recommended_gas_mmscf'] = round(gas_rate_mmscfd * 0.4, 3)
+            else:
+                result['recommended_gas_mmscf'] = 0.5
+
             # Determine if liquid loaded
             if result['actual_velocity'] < result['critical_velocity']:
                 result['liquid_loading_flag'] = True
@@ -196,7 +207,7 @@ class LiquidLoadingDiagnostics:
             else:
                 result['liquid_loading_flag'] = False
                 result['diagnosis'] = 'Not liquid loaded'
-            
+
             return result
         except Exception as e:
             result['diagnosis'] = f'Error: {str(e)}'

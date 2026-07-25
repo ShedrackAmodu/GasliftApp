@@ -163,6 +163,9 @@ class ReportGenerator:
         rom_capex = 500000  # $500k per well (typical)
         total_recommended = top5.count()
         
+        selected_scope_label = 'Selected well scope' if analysis.selected_wells else 'All analyzed wells'
+        selected_scope_detail = f"{len(analysis.selected_wells)} selected well(s)" if analysis.selected_wells else f"{total_wells} well(s) analyzed"
+
         html = f"""
 <!DOCTYPE html>
 <html>
@@ -231,6 +234,7 @@ class ReportGenerator:
         <h1>Gas Lift Candidate Executive Summary</h1>
         <p>Generated: {datetime.now().strftime('%B %d, %Y at %H:%M')}</p>
         <p>Dataset: <strong>{analysis.upload.filename}</strong> | Wells Analyzed: <strong>{total_wells}</strong></p>
+        <p><strong>{selected_scope_label}</strong>: <strong>{selected_scope_detail}</strong></p>
     </div>
 
     <div class="summary-text">

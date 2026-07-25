@@ -115,10 +115,8 @@ class MonteCarloSensitivity:
     def classify_confidence(rank_variance):
         """Classify decision confidence based on rank variance"""
         if rank_variance < 0.15:
-            return 'no_brainer'
+            return 'High'
         elif rank_variance < 0.30:
-            return 'confident'
-        elif rank_variance < 0.50:
-            return 'uncertain'
+            return 'Medium'
         else:
-            return 'requires_engineering_judgement'
+            return 'Low'

@@ -5,11 +5,12 @@ import math
 
 class PVTProperties:
     """Container for PVT properties"""
-    def __init__(self, api_gravity, gas_specific_gravity, water_salinity, temperature_f):
+    def __init__(self, api_gravity, gas_specific_gravity, water_salinity, temperature_f, tubing_diameter=None):
         self.api_gravity = api_gravity
         self.gas_specific_gravity = gas_specific_gravity
         self.water_salinity = water_salinity  # ppm
         self.temperature_f = temperature_f  # °F
+        self.tubing_diameter = tubing_diameter  # inches
 
     @property
     def oil_specific_gravity(self):

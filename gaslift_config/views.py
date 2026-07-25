@@ -1,13 +1,28 @@
 """
 Dashboard view providing context data for the Gas Lift application.
 """
-from django.shortcuts import render
 from django.http import HttpResponse
-from django.template.loader import render_to_string
-from django.test.utils import override_settings
-from django.conf import settings
+from django.shortcuts import render
 from apps.data_upload.models import DataUpload
 from apps.analysis.models import AnalysisSession, WellTrendAnalysis
+
+
+def download_manual_pdf(request):
+    """Render the user manual as a PDF response for download or inline preview."""
+    from django.template.loader import render_to_string
+    from weasyprint import HTML
+
+    template = 'base/user_manual_print.html'
+    html_string = render_to_string(template, request=request)
+    pdf_file = HTML(string=html_string, base_url=request.build_absolute_uri('/')).write_pdf()
+
+    content_disposition = 'attachment; filename="Gas_Lift_User_Manual.pdf"'
+    if request.GET.get('inline') == '1':
+        content_disposition = 'inline; filename="Gas_Lift_User_Manual.pdf"'
+
+    response = HttpResponse(pdf_file, content_type='application/pdf')
+    response['Content-Disposition'] = content_disposition
+    return response
 
 
 def dashboard(request):
@@ -38,39 +53,8 @@ def dashboard(request):
     return render(request, 'base/dashboard.html', context)
 
 
-def download_manual_pdf(request):
-    """Generate and download a PDF of the user manual."""
-    try:
-        from weasyprint import HTML
-
-        with override_settings(
-            STATICFILES_STORAGE='django.contrib.staticfiles.storage.StaticFilesStorage'
-        ):
-            html_string = render_to_string('base/user_manual.html', {'request': request})
-
-        try:
-            base_url = request.build_absolute_uri('/')
-        except Exception:
-            scheme = request.META.get('wsgi.url_scheme', 'http')
-            host = request.META.get('HTTP_HOST', 'localhost')
-            base_url = f'{scheme}://{host}/'
-
-        pdf_file = HTML(string=html_string, base_url=base_url).write_pdf()
-
-        response = HttpResponse(pdf_file, content_type='application/pdf')
-        disposition = 'inline; filename="Gas_Lift_User_Manual.pdf"' if request.GET.get('inline') == '1' else 'attachment; filename="Gas_Lift_User_Manual.pdf"'
-        response['Content-Disposition'] = disposition
-        response['Content-Length'] = len(pdf_file)
-        return response
-    except Exception as e:
-        if hasattr(request, '_messages'):
-            from django.contrib import messages
-            messages.error(
-                request,
-                f'Could not generate PDF: {str(e)}. You can view the manual online or print it from your browser.'
-            )
-
-        with override_settings(
-            STATICFILES_STORAGE='django.contrib.staticfiles.storage.StaticFilesStorage'
-        ):
-            return render(request, 'base/user_manual.html', {'pdf_error': str(e)})
+def user_manual_print(request):
+    """Render a print-optimized version of the user manual.
+    The browser's print dialog will open automatically, allowing the user
+    to save as PDF using the browser's built-in 'Save as PDF' feature."""
+    return render(request, 'base/user_manual_print.html')

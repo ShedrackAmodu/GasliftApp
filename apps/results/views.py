@@ -18,8 +18,10 @@ def view_results(request, analysis_id):
     """View analysis results - Step 7"""
     analysis = get_object_or_404(AnalysisSession, id=analysis_id, user=request.user)
     
-    # Get paginated results
+    # Get paginated results, respecting selected wells if any
     well_trends = WellTrendAnalysis.objects.filter(analysis=analysis).order_by('rank')
+    if analysis.selected_wells:
+        well_trends = well_trends.filter(well_id__in=analysis.selected_wells)
     
     paginator = Paginator(well_trends, 25)  # 25 per page
     page_number = request.GET.get('page', 1)
@@ -51,6 +53,8 @@ def export_excel(request, analysis_id):
     analysis = get_object_or_404(AnalysisSession, id=analysis_id, user=request.user)
     
     well_trends = WellTrendAnalysis.objects.filter(analysis=analysis).order_by('rank')
+    if analysis.selected_wells:
+        well_trends = well_trends.filter(well_id__in=analysis.selected_wells)
     
     # Create workbook
     wb = Workbook()
@@ -138,7 +142,8 @@ def export_excel(request, analysis_id):
     response = HttpResponse(
         content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
     )
-    response['Content-Disposition'] = 'attachment; filename="GasLift_Candidates.xlsx"'
+    scope_suffix = ' (selected wells)' if analysis.selected_wells else ''
+    response['Content-Disposition'] = f'attachment; filename="GasLift_Candidates{scope_suffix}.xlsx"'
     
     wb.save(response)
     return response
@@ -150,9 +155,12 @@ def export_csv(request, analysis_id):
     analysis = get_object_or_404(AnalysisSession, id=analysis_id, user=request.user)
     
     well_trends = WellTrendAnalysis.objects.filter(analysis=analysis).order_by('rank')
+    if analysis.selected_wells:
+        well_trends = well_trends.filter(well_id__in=analysis.selected_wells)
     
     response = HttpResponse(content_type='text/csv')
-    response['Content-Disposition'] = 'attachment; filename="GasLift_Candidates.csv"'
+    scope_suffix = ' (selected wells)' if analysis.selected_wells else ''
+    response['Content-Disposition'] = f'attachment; filename="GasLift_Candidates{scope_suffix}.csv"'
     
     writer = csv.writer(response)
     writer.writerow([
@@ -253,6 +261,8 @@ def export_pdf(request, analysis_id):
     """Export results as executive summary PDF"""
     analysis = get_object_or_404(AnalysisSession, id=analysis_id, user=request.user)
     well_trends = WellTrendAnalysis.objects.filter(analysis=analysis).order_by('rank')
+    if analysis.selected_wells:
+        well_trends = well_trends.filter(well_id__in=analysis.selected_wells)
     
     # Get completion data
     completion_data = {}
@@ -261,6 +271,9 @@ def export_pdf(request, analysis_id):
     
     pdf_bytes = ReportGenerator.generate_pdf(analysis, well_trends, completion_data)
     
+    if not pdf_bytes.startswith(b'%PDF'):
+        return HttpResponse(pdf_bytes, content_type='text/html')
+
     response = HttpResponse(content_type='application/pdf')
     response['Content-Disposition'] = f'attachment; filename="GasLift_Executive_Summary_{str(analysis_id)[:8]}.pdf"'
     response.write(pdf_bytes)

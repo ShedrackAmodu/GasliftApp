@@ -7,6 +7,8 @@ from django.db import transaction
 from django.contrib import messages
 from datetime import datetime
 import numpy as np
+import csv
+import io
 
 from apps.data_upload.models import DataUpload, ColumnMapping, PreviewData
 from .models import AnalysisSession, AnalysisWeights, WellTrendAnalysis, PVTProperties, CompletionData
@@ -112,7 +114,7 @@ def get_well_data(request, analysis_id, well_name):
         # Try to get pre-computed analysis from database
         trend = WellTrendAnalysis.objects.filter(analysis=analysis, well_id=well_name).first()
         
-        if trend and trend.original_values:
+        if trend and trend.original_values is not None and trend.original_values:
             # Use stored corrected values and original values
             dates = [str(_parse_date(r.get('Date', ''))).split()[0] for r in _load_data(analysis.upload, ColumnMapping.objects.get(upload=analysis.upload).mapping) 
                       if r.get('Well') == well_name]
@@ -178,6 +180,18 @@ def run_analysis(request, analysis_id):
             # Delete any existing well trends for this analysis (prevents duplicates on re-run)
             WellTrendAnalysis.objects.filter(analysis=analysis).delete()
 
+            # Get selected wells from POST data (JSON string) and save to model
+            selected_wells_raw = request.POST.get('selected_wells', '[]')
+            try:
+                import json
+                selected_wells = json.loads(selected_wells_raw)
+            except (json.JSONDecodeError, TypeError):
+                selected_wells = []
+            
+            # Store selected wells on the analysis session for later use
+            analysis.selected_wells = selected_wells
+            analysis.save(update_fields=['selected_wells'])
+
             # Extract preprocessing params from saved weights or form submission
             base_choke_size = getattr(weights, 'base_choke_size', '') or request.POST.get('base_choke_size', '').strip() or None
             outlier_method = getattr(weights, 'outlier_method', '') or request.POST.get('outlier_method', 'iqr')
@@ -197,17 +211,23 @@ def run_analysis(request, analysis_id):
                     api_gravity=pvt_model.api_gravity,
                     gas_specific_gravity=pvt_model.gas_specific_gravity,
                     water_salinity=pvt_model.water_salinity,
-                    temperature_f=pvt_model.temperature
+                    temperature_f=pvt_model.temperature,
+                    tubing_diameter=pvt_model.tubing_diameter
                 )
             except PVTProperties.DoesNotExist:
                 pass
 
             # Gas constraint for knapsack optimization
-            gas_constraint_mmscf = getattr(weights, 'gas_constraint_mmscf', None) if hasattr(weights, 'gas_constraint_mmscf') else None
+            gas_constraint_mmscf = getattr(weights, 'gas_constraint_mmscf', None)
 
             # Analyze each well
             well_trends = []
             wells = _unique_wells(rows)
+            
+            # Filter to only selected wells if any were specified
+            if selected_wells:
+                wells = [w for w in wells if w in selected_wells]
+            
             skipped_wells = 0
 
             if len(wells) == 0:
@@ -266,11 +286,26 @@ def run_analysis(request, analysis_id):
                     avg_tp = sum(tp_values) / len(tp_values) if tp_values else None
                     
                     if avg_glr and avg_tp:
+                        oil_values = [r.get('Net Oil (bopd)') for r in well_rows if r.get('Net Oil (bopd)') is not None]
+                        avg_oil = sum(oil_values) / len(oil_values) if oil_values else None
+                        gas_rate_mmscfd = None
+                        if avg_oil and avg_oil > 0:
+                            gas_rate_mmscfd = (avg_glr * avg_oil) / 1000000.0
                         liquid_loader = LiquidLoadingDiagnostics(pvt_props, pvt_props.tubing_diameter)
-                        ll_result = liquid_loader.analyze_well(avg_glr, avg_tp)
+                        ll_result = liquid_loader.analyze_well(
+                            avg_glr_scf_bbl=avg_glr,
+                            avg_tubing_pressure_psi=avg_tp,
+                            gas_rate_mmscfd=gas_rate_mmscfd,
+                            oil_rate_bopd=avg_oil,
+                        )
                         liquid_loading_flag = ll_result.get('liquid_loading_flag', False)
                         trends['critical_velocity'] = ll_result.get('critical_velocity')
                         trends['actual_velocity'] = ll_result.get('actual_velocity')
+                        trends['critical_glr'] = ll_result.get('critical_glr')
+                        trends['actual_glr'] = ll_result.get('actual_glr')
+                        trends['diagnosis'] = ll_result.get('diagnosis')
+                        trends['recommended_gas_mmscf'] = ll_result.get('recommended_gas_mmscf')
+                        trends['gas_utilization_efficiency'] = ll_result.get('gas_utilization_efficiency')
                     
                     # PI calculation if reservoir pressure data available
                     rp_values = [r.get('Reservoir Pressure (psi)') for r in well_rows if r.get('Reservoir Pressure (psi)') is not None]
@@ -299,15 +334,19 @@ def run_analysis(request, analysis_id):
                 oil_series = [r.get('Net Oil (bopd)') for r in well_rows]
                 oil_slope = trends.get('oil_rate_slope', 0)
                 if oil_slope < 0:  # Declining
-                    current_oil = trends.get('corrected_values', {}).get('oil_rate', [None])[-1]
+                    corrected_oil_series = trends.get('corrected_values', {}).get('oil_rate')
+                    if corrected_oil_series and len(corrected_oil_series) > 0:
+                        # Last non-None value in corrected series
+                        current_oil = next((v for v in reversed(corrected_oil_series) if v is not None), None)
+                    else:
+                        current_oil = None
                     if current_oil is None:
                         current_oil = well_rows[-1].get('Net Oil (bopd)')
                     if current_oil and weights.economic_limit_oil_bopd:
-                        if oil_slope < 0:
-                            days_to_limit = (current_oil - weights.economic_limit_oil_bopd) / abs(oil_slope)
-                            trends['days_to_economic_limit'] = max(0, int(days_to_limit))
-                            projected_6mo = current_oil + oil_slope * 180
-                            trends['projected_oil_rate_6mo'] = max(0, round(projected_6mo, 2))
+                        days_to_limit = (current_oil - weights.economic_limit_oil_bopd) / abs(oil_slope)
+                        trends['days_to_economic_limit'] = max(0, int(days_to_limit))
+                        projected_6mo = current_oil + oil_slope * 180
+                        trends['projected_oil_rate_6mo'] = max(0, round(projected_6mo, 2))
 
                 # Determine completion feasibility (simplified)
                 trends['completion_feasibility'] = 'feasible'  # Default to feasible unless deep check done
@@ -376,9 +415,8 @@ def run_analysis(request, analysis_id):
                 well_trends_sorted = sorted(well_trends, key=lambda x: x.candidate_score, reverse=True)
                 for idx, trend in enumerate(well_trends_sorted, 1):
                     trend.rank = idx
-                    trend.save()
 
-            # Save all records
+            # Save all records (ranks + all other fields)
             for trend in well_trends:
                 trend.save()
 
@@ -494,6 +532,184 @@ def upload_completion_data(request, analysis_id):
     analysis = get_object_or_404(AnalysisSession, id=analysis_id, user=request.user)
     
     if request.method == 'POST':
+        # Priority: uploaded file -> raw CSV body -> JSON body -> form submission
+        # 1) Uploaded file
+        if request.FILES.get('completion_file'):
+            completion_file = request.FILES.get('completion_file')
+            # Wrap file as text
+            try:
+                text_file = io.TextIOWrapper(completion_file.file, encoding='utf-8', newline='')
+            except Exception:
+                try:
+                    completion_file.seek(0)
+                except Exception:
+                    pass
+                text_file = io.TextIOWrapper(completion_file, encoding='utf-8', newline='')
+
+            reader = csv.DictReader(text_file)
+            processed = 0
+            errors = []
+            for i, row in enumerate(reader, start=1):
+                try:
+                    well_id = (row.get('well_id') or row.get('well') or '').strip()
+                    if not well_id:
+                        raise ValueError('Missing well_id')
+
+                    mandrel_str = row.get('mandrel_depths', '')
+                    mandrel_depths = [float(p.strip()) for p in mandrel_str.split(',') if p.strip()]
+
+                    packer_depth = float(row.get('packer_depth')) if row.get('packer_depth') else None
+                    tubing_od = float(row.get('tubing_od')) if row.get('tubing_od') else None
+                    tubing_id = float(row.get('tubing_id')) if row.get('tubing_id') else None
+                    available_compression = float(row.get('available_compression_pressure')) if row.get('available_compression_pressure') else None
+
+                    result = CompletionFeasibilityChecker.analyze_completion(
+                        mandrel_depths=mandrel_depths,
+                        packer_depth_ft=packer_depth,
+                        tubing_id_inch=tubing_id,
+                        available_compression_pressure_psi=available_compression
+                    )
+
+                    CompletionData.objects.update_or_create(
+                        analysis=analysis,
+                        well_id=well_id,
+                        defaults={
+                            'mandrel_depths': mandrel_depths,
+                            'packer_depth': packer_depth,
+                            'tubing_od': tubing_od,
+                            'tubing_id': tubing_id,
+                            'injection_pressure_required': result.get('required_pressure_at_deepest'),
+                            'feasibility_flag': 'feasible' if result.get('overall_feasible') else 'pressure_limited',
+                        }
+                    )
+
+                    # Update well trend if present
+                    well_trend = WellTrendAnalysis.objects.filter(analysis=analysis, well_id=well_id).first()
+                    if well_trend:
+                        if result.get('overall_feasible'):
+                            well_trend.completion_feasibility = 'feasible'
+                        else:
+                            deficit = result.get('mandrel_analysis', [{}])[0].get('deficit_psi', 0)
+                            well_trend.completion_feasibility = 'pressure_limited' if deficit < 200 else 'requires_deepening'
+                        well_trend.save()
+
+                    processed += 1
+                except Exception as e:
+                    errors.append(f'Row {i}: {str(e)}')
+            try:
+                text_file.detach()
+            except Exception:
+                pass
+
+            # Return JSON for API clients
+            if (request.headers.get('Accept') == 'application/json'
+                or request.content_type == 'application/json'
+                or request.headers.get('x-requested-with') == 'XMLHttpRequest'):
+                return JsonResponse({'processed': processed, 'errors': errors})
+
+            msg = f'Processed {processed} completion record(s).'
+            if errors:
+                messages.warning(request, msg + ' Some rows had errors: ' + '; '.join(errors[:5]))
+            else:
+                messages.success(request, msg)
+            return redirect('analysis:well_trends', analysis_id=analysis.id)
+
+        # 2) Raw CSV body
+        if request.content_type and 'csv' in request.content_type:
+            try:
+                body_text = request.body.decode('utf-8')
+                reader = csv.DictReader(io.StringIO(body_text))
+            except Exception as e:
+                return JsonResponse({'error': str(e)}, status=400)
+
+            processed = 0
+            errors = []
+            for i, row in enumerate(reader, start=1):
+                try:
+                    well_id = (row.get('well_id') or row.get('well') or '').strip()
+                    if not well_id:
+                        raise ValueError('Missing well_id')
+                    mandrel_str = row.get('mandrel_depths', '')
+                    mandrel_depths = [float(p.strip()) for p in mandrel_str.split(',') if p.strip()]
+                    packer_depth = float(row.get('packer_depth')) if row.get('packer_depth') else None
+                    tubing_od = float(row.get('tubing_od')) if row.get('tubing_od') else None
+                    tubing_id = float(row.get('tubing_id')) if row.get('tubing_id') else None
+                    available_compression = float(row.get('available_compression_pressure')) if row.get('available_compression_pressure') else None
+
+                    result = CompletionFeasibilityChecker.analyze_completion(
+                        mandrel_depths=mandrel_depths,
+                        packer_depth_ft=packer_depth,
+                        tubing_id_inch=tubing_id,
+                        available_compression_pressure_psi=available_compression
+                    )
+
+                    CompletionData.objects.update_or_create(
+                        analysis=analysis,
+                        well_id=well_id,
+                        defaults={
+                            'mandrel_depths': mandrel_depths,
+                            'packer_depth': packer_depth,
+                            'tubing_od': tubing_od,
+                            'tubing_id': tubing_id,
+                            'injection_pressure_required': result.get('required_pressure_at_deepest'),
+                            'feasibility_flag': 'feasible' if result.get('overall_feasible') else 'pressure_limited',
+                        }
+                    )
+                    processed += 1
+                except Exception as e:
+                    errors.append(f'Row {i}: {str(e)}')
+
+            return JsonResponse({'processed': processed, 'errors': errors})
+
+        # 3) JSON body
+        if request.content_type and 'json' in request.content_type:
+            try:
+                payload = json.loads(request.body.decode('utf-8'))
+            except Exception as e:
+                return JsonResponse({'error': f'Invalid JSON body: {e}'}, status=400)
+
+            records = payload if isinstance(payload, list) else [payload]
+            processed = 0
+            errors = []
+            for i, rec in enumerate(records, start=1):
+                try:
+                    well_id = (rec.get('well_id') or rec.get('well') or '').strip()
+                    if not well_id:
+                        raise ValueError('Missing well_id')
+                    mandrel_depths = rec.get('mandrel_depths') or []
+                    if isinstance(mandrel_depths, str):
+                        mandrel_depths = [float(p.strip()) for p in mandrel_depths.split(',') if p.strip()]
+                    packer_depth = float(rec.get('packer_depth')) if rec.get('packer_depth') else None
+                    tubing_od = float(rec.get('tubing_od')) if rec.get('tubing_od') else None
+                    tubing_id = float(rec.get('tubing_id')) if rec.get('tubing_id') else None
+                    available_compression = float(rec.get('available_compression_pressure')) if rec.get('available_compression_pressure') else None
+
+                    result = CompletionFeasibilityChecker.analyze_completion(
+                        mandrel_depths=mandrel_depths,
+                        packer_depth_ft=packer_depth,
+                        tubing_id_inch=tubing_id,
+                        available_compression_pressure_psi=available_compression
+                    )
+
+                    CompletionData.objects.update_or_create(
+                        analysis=analysis,
+                        well_id=well_id,
+                        defaults={
+                            'mandrel_depths': mandrel_depths,
+                            'packer_depth': packer_depth,
+                            'tubing_od': tubing_od,
+                            'tubing_id': tubing_id,
+                            'injection_pressure_required': result.get('required_pressure_at_deepest'),
+                            'feasibility_flag': 'feasible' if result.get('overall_feasible') else 'pressure_limited',
+                        }
+                    )
+                    processed += 1
+                except Exception as e:
+                    errors.append(f'Record {i}: {str(e)}')
+
+            return JsonResponse({'processed': processed, 'errors': errors})
+
+        # 4) Fallback to form submission
         form = CompletionDataForm(request.POST)
         if form.is_valid():
             well_id = form.cleaned_data['well_id']
@@ -502,7 +718,7 @@ def upload_completion_data(request, analysis_id):
             tubing_od = form.cleaned_data.get('tubing_od')
             tubing_id = form.cleaned_data.get('tubing_id')
             available_compression = form.cleaned_data['available_compression_pressure']
-            
+
             # Run feasibility analysis
             result = CompletionFeasibilityChecker.analyze_completion(
                 mandrel_depths=mandrel_depths,
@@ -510,7 +726,7 @@ def upload_completion_data(request, analysis_id):
                 tubing_id_inch=tubing_id,
                 available_compression_pressure_psi=available_compression
             )
-            
+
             # Save completion data
             completion, created = CompletionData.objects.update_or_create(
                 analysis=analysis,
@@ -524,7 +740,7 @@ def upload_completion_data(request, analysis_id):
                     'feasibility_flag': 'feasible' if result.get('overall_feasible') else 'pressure_limited',
                 }
             )
-            
+
             # Update well trend record if exists
             well_trend = WellTrendAnalysis.objects.filter(analysis=analysis, well_id=well_id).first()
             if well_trend:
@@ -534,7 +750,7 @@ def upload_completion_data(request, analysis_id):
                     deficit = result.get('mandrel_analysis', [{}])[0].get('deficit_psi', 0)
                     well_trend.completion_feasibility = 'pressure_limited' if deficit < 200 else 'requires_deepening'
                 well_trend.save()
-            
+
             messages.success(request, f'Completion data saved for {well_id}. {result.get("recommendation", "")}')
             return redirect('analysis:well_trends', analysis_id=analysis.id)
     else:

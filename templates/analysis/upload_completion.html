@@ -56,9 +56,18 @@
                 </ul>
             </div>
             
+            <form id="csvUploadForm" method="post" enctype="multipart/form-data" action="{% url 'analysis:upload_completion' analysis.id %}">
+                {% csrf_token %}
+                <div class="mb-3">
+                    <label for="id_completion_file" class="form-label"><strong>Or upload CSV file (optional)</strong></label>
+                    <input type="file" name="completion_file" id="id_completion_file" class="form-control" accept=".csv">
+                    <div class="form-text">Upload a CSV with columns: <em>well_id, mandrel_depths, packer_depth, tubing_od, tubing_id, available_compression_pressure</em></div>
+                </div>
+            </form>
+
             <form method="post">
                 {% csrf_token %}
-                
+
                 <div class="row">
                     <div class="col-md-6">
                         <div class="mb-3">
@@ -153,5 +162,20 @@ document.getElementById('{{ form.mandrel_depths.id_for_label }}').addEventListen
     const values = this.value.split(',').map(v => v.trim()).filter(v => v);
     this.value = values.join(', ');
 });
+
+// Auto-submit CSV upload form when a file is picked
+const csvInput = document.getElementById('id_completion_file');
+if (csvInput) {
+    csvInput.addEventListener('change', function() {
+        if (this.files && this.files.length > 0) {
+            if (confirm('Upload selected CSV and process completion records?')) {
+                document.getElementById('csvUploadForm').submit();
+            } else {
+                // clear selection
+                this.value = '';
+            }
+        }
+    });
+}
 </script>
 {% endblock %}

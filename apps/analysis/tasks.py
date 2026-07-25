@@ -51,6 +51,11 @@ def run_analysis_async(self, analysis_id, user_id, options=None):
         well_trends = []
         wells_data = _group_wells_celery(rows)
         wells = list(wells_data.keys())
+        
+        # Filter to only selected wells if any were stored
+        if analysis.selected_wells:
+            wells = [w for w in wells if w in analysis.selected_wells]
+        
         total_wells = len(wells)
         skipped_wells = 0
         
