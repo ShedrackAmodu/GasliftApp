@@ -70,6 +70,9 @@
                 <a href="{% url 'analysis:compare_analyses' %}" class="btn btn-outline-info">
                     <i class="bi bi-arrows-collapse"></i> Compare With Another Run
                 </a>
+                <button type="button" class="btn btn-outline-warning" id="sensitivityBtn" data-analysis-id="{{ analysis.id }}">
+                    <i class="bi bi-shuffle"></i> Sensitivity Analysis
+                </button>
             </div>
             
             <!-- Filter Controls -->
@@ -252,6 +255,47 @@
     </div>
 </div>
 
+<!-- Sensitivity Analysis Modal -->
+<div class="modal fade" id="sensitivityModal" tabindex="-1" aria-labelledby="sensitivityModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-lg modal-dialog-scrollable">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="sensitivityModalLabel"><i class="bi bi-shuffle"></i> Monte Carlo Sensitivity Analysis</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <div id="sensitivityLoading" class="text-center py-5">
+                    <div class="spinner-border text-primary" role="status"></div>
+                    <p class="mt-3">Running 1,000 Monte Carlo simulations... This may take a moment.</p>
+                </div>
+                <div id="sensitivityError" class="alert alert-danger" style="display:none;"></div>
+                <div id="sensitivityResults" style="display:none;">
+                    <p class="text-muted small">Rankings perturbed by &plusmn;20% across 1,000 iterations. Lower variance means more stable ranking.</p>
+                    <div class="table-responsive">
+                        <table class="table table-sm table-striped table-hover">
+                            <thead>
+                                <tr>
+                                    <th>Well</th>
+                                    <th>Avg Rank</th>
+                                    <th>Rank Std</th>
+                                    <th>5th Pct</th>
+                                    <th>95th Pct</th>
+                                    <th>Avg Score</th>
+                                    <th>Confidence</th>
+                                </tr>
+                            </thead>
+                            <tbody id="sensitivityTableBody"></tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+            </div>
+        </div>
+    </div>
+</div>
+
 <style>
 /* Print-specific styling */
 @media print {
@@ -381,5 +425,60 @@ function clearFilters() {
 
 // Apply debounce to search input
 document.getElementById('searchFilter')?.addEventListener('keyup', debounce(filterTable, 300));
+
+// Sensitivity Analysis
+const sensitivityBtn = document.getElementById('sensitivityBtn');
+if (sensitivityBtn) {
+    sensitivityBtn.addEventListener('click', function() {
+        const analysisId = this.getAttribute('data-analysis-id');
+        const modal = new bootstrap.Modal(document.getElementById('sensitivityModal'));
+        document.getElementById('sensitivityLoading').style.display = 'block';
+        document.getElementById('sensitivityError').style.display = 'none';
+        document.getElementById('sensitivityResults').style.display = 'none';
+        modal.show();
+
+        fetch(`/api/analysis/${analysisId}/sensitivity/`, {
+            headers: { 'X-Requested-With': 'XMLHttpRequest' },
+            credentials: 'same-origin'
+        })
+        .then(response => response.json())
+        .then(data => {
+            document.getElementById('sensitivityLoading').style.display = 'none';
+            if (data.error) {
+                document.getElementById('sensitivityError').textContent = data.error;
+                document.getElementById('sensitivityError').style.display = 'block';
+            } else {
+                const tbody = document.getElementById('sensitivityTableBody');
+                tbody.innerHTML = '';
+                const results = data.results || {};
+                const confidenceColors = {
+                    'no_brainer': 'success',
+                    'confident': 'success',
+                    'uncertain': 'warning',
+                    'requires_engineering_judgement': 'danger'
+                };
+                Object.entries(results).sort((a, b) => a[1].rank_mean - b[1].rank_mean).forEach(([wellId, r]) => {
+                    const confColor = confidenceColors[r.confidence] || 'secondary';
+                    tbody.innerHTML += `
+                        <tr>
+                            <td><strong>${wellId}</strong></td>
+                            <td>${r.rank_mean.toFixed(2)}</td>
+                            <td>${r.rank_std.toFixed(2)}</td>
+                            <td>${r.rank_5th}</td>
+                            <td>${r.rank_95th}</td>
+                            <td>${r.score_mean.toFixed(1)}</td>
+                            <td><span class="badge bg-${confColor}">${r.confidence.replace(/_/g, ' ')}</span></td>
+                        </tr>`;
+                });
+                document.getElementById('sensitivityResults').style.display = 'block';
+            }
+        })
+        .catch(error => {
+            document.getElementById('sensitivityLoading').style.display = 'none';
+            document.getElementById('sensitivityError').textContent = 'Error: ' + error;
+            document.getElementById('sensitivityError').style.display = 'block';
+        });
+    });
+}
 </script>
 {% endblock %}
