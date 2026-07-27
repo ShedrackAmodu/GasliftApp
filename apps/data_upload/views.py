@@ -53,32 +53,10 @@ def upload_file(request):
 def column_mapping(request, upload_id):
     """Column mapping view - Step 2"""
     upload = get_object_or_404(DataUpload, id=upload_id, user=request.user)
-    
-    if request.method == 'POST':
-        mapping_data = request.POST.get('mapping')
-        mapping = json.loads(mapping_data)
-        
-        # Validate mapping
-        if not DataProcessor.validate_mapping(mapping):
-            return render(request, 'data_upload/column_mapping.html', {
-                'upload': upload,
-                'available_columns': upload.columns,
-                'error': 'All required fields must be mapped'
-            })
-        
-        # Create or update column mapping
-        col_map, created = ColumnMapping.objects.update_or_create(
-            upload=upload,
-            defaults={'mapping': mapping, 'is_valid': True}
-        )
-        
-        # Invalidate existing preview when mapping changes (force re-processing)
-        PreviewData.objects.filter(upload=upload).delete()
-        
-        messages.success(request, 'Columns mapped successfully.')
-        return redirect('data_upload:preview_data', upload_id=upload.id)
-    
-    # Try to read columns from uploaded file
+    available_columns = []
+    error = None
+
+    # Always read the uploaded file to keep column metadata current.
     try:
         rows = DataProcessor.read_file(upload.file, upload.file_format)
         available_columns = DataProcessor.detect_columns(rows)
@@ -89,28 +67,50 @@ def column_mapping(request, upload_id):
         upload.error_message = str(e)
         upload.save()
         available_columns = []
-    
-    # Get existing mapping if any
-    try:
-        col_mapping = ColumnMapping.objects.get(upload=upload)
-        current_mapping = col_mapping.mapping
-    except ColumnMapping.DoesNotExist:
+        if request.method == 'POST':
+            error = 'Unable to read uploaded file. Please upload a valid CSV or Excel file.'
+
+    if request.method == 'POST' and available_columns:
+        mapping_data = request.POST.get('mapping', '{}')
+        try:
+            mapping = json.loads(mapping_data)
+        except json.JSONDecodeError:
+            mapping = {}
+
+        if not DataProcessor.validate_mapping(mapping, available_columns=available_columns):
+            error = 'All required fields must be mapped to valid, unique columns from your uploaded file.'
+            current_mapping = mapping if isinstance(mapping, dict) else {}
+        else:
+            col_map, created = ColumnMapping.objects.update_or_create(
+                upload=upload,
+                defaults={'mapping': mapping, 'is_valid': True}
+            )
+            PreviewData.objects.filter(upload=upload).delete()
+            messages.success(request, 'Columns mapped successfully.')
+            return redirect('data_upload:preview_data', upload_id=upload.id)
+    else:
         current_mapping = {}
-    
+        try:
+            col_mapping = ColumnMapping.objects.get(upload=upload)
+            current_mapping = col_mapping.mapping
+        except ColumnMapping.DoesNotExist:
+            current_mapping = {}
+
     auto_mapping = DataProcessor.auto_map_columns(available_columns)
     mapping_pairs = [
         (field, current_mapping.get(field, auto_mapping.get(field, '')))
         for field in ColumnMapping.REQUIRED_FIELDS
     ]
-    
+
     context = {
         'upload': upload,
         'available_columns': available_columns,
         'current_mapping': current_mapping,
         'mapping_pairs': mapping_pairs,
         'auto_mapping': auto_mapping,
+        'error': error,
     }
-    
+
     return render(request, 'data_upload/column_mapping.html', context)
 
 @login_required(login_url='accounts:login')
@@ -138,7 +138,7 @@ def preview_data(request, upload_id):
     context = {
         'upload': upload,
         'preview': preview,
-        'sample_data': preview.sample_data[:20] if preview else [],
+        'sample_data': preview.sample_data if preview else [],
         'quality_report': preview.data_quality_report if preview else {}
     }
     

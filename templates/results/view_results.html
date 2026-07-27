@@ -60,7 +60,7 @@
                     <a href="{% url 'results:export_pdf' analysis.id %}" class="btn btn-outline-danger">
                         <i class="bi bi-file-earmark-pdf"></i> PDF Report
                     </a>
-                    <button class="btn btn-outline-secondary" id="runSensitivityBtn" onclick="runSensitivity(event)">
+                    <button type="button" class="btn btn-outline-secondary" id="runSensitivityBtn" onclick="runSensitivity(event)">
                         <i class="bi bi-shuffle"></i> Sensitivity
                     </button>
                     <button class="btn btn-outline-secondary" onclick="window.print()">
@@ -80,13 +80,41 @@
                 </a>
             </div>
 
+            {% if messages %}
+            <div class="mt-3">
+                {% for message in messages %}
+                <div class="alert alert-{{ message.tags }} alert-dismissible fade show" role="alert">
+                    {{ message }}
+                    <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+                </div>
+                {% endfor %}
+            </div>
+            {% endif %}
+
+            {% if analysis.status == 'completed' %}
+            <div class="alert alert-success mb-4">
+                <strong>Analysis completed successfully</strong>
+                {% if analysis.completed_at %}on {{ analysis.completed_at|date:"F d, Y H:i" }}{% endif %}.
+            </div>
+            {% elif analysis.status == 'failed' %}
+            <div class="alert alert-danger mb-4">
+                <strong>Analysis failed.</strong>
+                {{ analysis.error_message }}
+            </div>
+            {% else %}
+            <div class="alert alert-warning mb-4">
+                <strong>Analysis status:</strong> {{ analysis.get_status_display }}.
+            </div>
+            {% endif %}
+
             <div class="row g-3 mb-4">
                 <div class="col-md-3">
                     <div class="card border-primary h-100">
                         <div class="card-body">
                             <div class="text-muted small">Top candidate</div>
-                            <div class="fw-bold fs-5">{{ well_trends.0.well_id|default:'N/A' }}</div>
+                            <div class="fw-bold fs-5">{{ diagnostic_summary.top_candidate }}</div>
                             <div class="text-muted small">Rank #1 with the strongest screening signal</div>
+                            <div class="text-muted small">Score: {{ diagnostic_summary.top_candidate_score|floatformat:0 }}</div>
                         </div>
                     </div>
                 </div>
@@ -94,8 +122,9 @@
                     <div class="card border-warning h-100">
                         <div class="card-body">
                             <div class="text-muted small">Urgent intervention count</div>
-                            <div class="fw-bold fs-5">{% for trend in well_trends %}{% if trend.days_to_economic_limit is not None and trend.days_to_economic_limit <= 90 %}{% if not forloop.first %},{% endif %}{{ trend.well_id }}{% endif %}{% empty %}None{% endfor %}</div>
+                            <div class="fw-bold fs-5">{{ diagnostic_summary.urgent }}</div>
                             <div class="text-muted small">Wells within 90 days of economic limit</div>
+                            <div class="text-muted small">{{ diagnostic_summary.urgent_wells|join:', ' }}</div>
                         </div>
                     </div>
                 </div>
@@ -103,8 +132,9 @@
                     <div class="card border-danger h-100">
                         <div class="card-body">
                             <div class="text-muted small">Liquid-loading risk</div>
-                            <div class="fw-bold fs-5">{% for trend in well_trends %}{% if trend.liquid_loading_flag %}{{ trend.well_id }}{% if not forloop.last %}, {% endif %}{% endif %}{% empty %}None{% endfor %}</div>
+                            <div class="fw-bold fs-5">{{ diagnostic_summary.liquid_loaded }}</div>
                             <div class="text-muted small">Wells flagged as liquid-loaded</div>
+                            <div class="text-muted small">{{ diagnostic_summary.liquid_loaded_wells|join:', ' }}</div>
                         </div>
                     </div>
                 </div>
@@ -112,8 +142,9 @@
                     <div class="card border-success h-100">
                         <div class="card-body">
                             <div class="text-muted small">Completion outlook</div>
-                            <div class="fw-bold fs-5">{% for trend in well_trends %}{% if trend.completion_feasibility == 'feasible' %}{{ trend.well_id }}{% if not forloop.last %}, {% endif %}{% endif %}{% empty %}Pending{% endfor %}</div>
+                            <div class="fw-bold fs-5">{{ diagnostic_summary.feasible_completions }}</div>
                             <div class="text-muted small">Wells with a feasible completion pathway</div>
+                            <div class="text-muted small">{{ diagnostic_summary.feasible_completion_wells|join:', ' }}</div>
                         </div>
                     </div>
                 </div>
@@ -121,6 +152,86 @@
 
             <div class="alert alert-info mb-4">
                 <strong>Ranking rationale:</strong> wells were prioritized using the weighted trend signals from BSW, oil-rate decline, GLR decline, tubing-pressure behavior, plus liquid-loading, economic-limit, and completion-feasibility indicators.
+            </div>
+
+            <div class="row g-3 mb-4">
+                <div class="col-md-3">
+                    <div class="card border-danger h-100">
+                        <div class="card-body">
+                            <div class="text-muted small">Liquid-loading risk</div>
+                            <div class="fw-bold fs-5">{{ diagnostic_summary.liquid_loaded }}</div>
+                            <div class="text-muted small">Wells flagged by the PVT-based diagnostic</div>
+                            <div class="text-muted small">{{ diagnostic_summary.liquid_loaded_wells|join:', ' }}</div>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-3">
+                    <div class="card border-warning h-100">
+                        <div class="card-body">
+                            <div class="text-muted small">Urgent economics</div>
+                            <div class="fw-bold fs-5">{{ diagnostic_summary.urgent }}</div>
+                            <div class="text-muted small">Wells within 90 days of economic limit</div>
+                            <div class="text-muted small">{{ diagnostic_summary.urgent_wells|join:', ' }}</div>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-3">
+                    <div class="card border-success h-100">
+                        <div class="card-body">
+                            <div class="text-muted small">Feasible completions</div>
+                            <div class="fw-bold fs-5">{{ diagnostic_summary.feasible_completions }}</div>
+                            <div class="text-muted small">Wells with a feasible gas-lift pathway</div>
+                            <div class="text-muted small">{{ diagnostic_summary.feasible_completion_wells|join:', ' }}</div>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-3">
+                    <div class="card border-info h-100">
+                        <div class="card-body">
+                            <div class="text-muted small">Recommended lift gas</div>
+                            <div class="fw-bold fs-5">{{ diagnostic_summary.recommended_gas_total|floatformat:2 }} MMscf/d</div>
+                            <div class="text-muted small">Estimated gas needed across the portfolio</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="row g-3 mb-4">
+                <div class="col-md-3">
+                    <div class="card border-secondary h-100">
+                        <div class="card-body">
+                            <div class="text-muted small">Average candidate score</div>
+                            <div class="fw-bold fs-5">{{ diagnostic_summary.average_score|floatformat:1 }}</div>
+                            <div class="text-muted small">Portfolio signal strength</div>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-3">
+                    <div class="card border-secondary h-100">
+                        <div class="card-body">
+                            <div class="text-muted small">Average data quality</div>
+                            <div class="fw-bold fs-5">{{ diagnostic_summary.average_quality|floatformat:1 }}%</div>
+                            <div class="text-muted small">Average completeness of trends</div>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-3">
+                    <div class="card border-secondary h-100">
+                        <div class="card-body">
+                            <div class="text-muted small">High-priority candidates</div>
+                            <div class="fw-bold fs-5">{{ diagnostic_summary.high_priority }}</div>
+                            <div class="text-muted small">Score ≥ 25</div>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-3">
+                    <div class="card border-secondary h-100">
+                        <div class="card-body">
+                            <div class="text-muted small">Medium priority</div>
+                            <div class="fw-bold fs-5">{{ diagnostic_summary.medium_priority }}</div>
+                            <div class="text-muted small">Score 15–24</div>
+                        </div>
+                    </div>
+                </div>
             </div>
             <div class="alert alert-secondary d-none" id="sensitivityResultsCard"></div>
             
@@ -170,6 +281,7 @@
                             <th>BSW</th>
                             <th>Oil Rate</th>
                             <th>GLR</th>
+                            <th>Trend Details</th>
                             <th>Score</th>
                             <th>Data Quality</th>
                             <th>Liquid Loading</th>
@@ -214,6 +326,12 @@
                                 {% else %}
                                 <span class="badge badge-flag-no">No</span>
                                 {% endif %}
+                            </td>
+                            <td>
+                                <small><strong>BSW:</strong> {{ trend.bsw_trend|default:'N/A' }}{% if trend.bsw_magnitude %} ({{ trend.bsw_magnitude|title }}){% endif %}</small><br>
+                                <small><strong>Oil:</strong> {{ trend.oil_rate_trend|default:'N/A' }}{% if trend.oil_rate_magnitude %} ({{ trend.oil_rate_magnitude|title }}){% endif %}</small><br>
+                                <small><strong>GLR:</strong> {{ trend.glr_trend|default:'N/A' }}{% if trend.glr_magnitude %} ({{ trend.glr_magnitude|title }}){% endif %}</small><br>
+                                <small><strong>TP:</strong> {{ trend.tubing_pressure_trend|default:'N/A' }}</small>
                             </td>
                             <td><strong>{{ trend.candidate_score|floatformat:0 }}</strong></td>
                             <td>
@@ -327,54 +445,6 @@
     .card-body {
         padding: 0.5rem !important;
     }
-</style>
-
-<script>
-function runSensitivity(event) {
-    event.preventDefault();
-    var card = document.getElementById('sensitivityResultsCard');
-    card.classList.remove('d-none', 'alert-danger', 'alert-success');
-    card.classList.add('alert-info');
-    card.innerHTML = '<strong>Running sensitivity analysis...</strong>';
-
-    fetch('{% url "analysis:run_sensitivity" analysis.id %}', {
-        headers: {
-            'X-Requested-With': 'XMLHttpRequest'
-        }
-    })
-    .then(function(response) {
-        return response.json();
-    })
-    .then(function(data) {
-        if (data.error) {
-            card.classList.remove('alert-info');
-            card.classList.add('alert-danger');
-            card.innerHTML = '<strong>Error:</strong> ' + data.error;
-            return;
-        }
-
-        var results = data.results || {};
-        var items = Object.keys(results).map(function(well) {
-            var info = results[well];
-            return '<li><strong>' + well + '</strong>: ' +
-                   info.confidence + ' confidence, ' +
-                   'mean rank ' + info.rank_mean + ', ' +
-                   'rank std ' + info.rank_std + '</li>';
-        });
-
-        card.classList.remove('alert-info');
-        card.classList.add('alert-success');
-        card.innerHTML = '<h5>Sensitivity Results</h5>' +
-                         '<p>Monte Carlo sensitivity analysis completed successfully.</p>' +
-                         '<ul>' + items.join('') + '</ul>';
-    })
-    .catch(function(error) {
-        card.classList.remove('alert-info');
-        card.classList.add('alert-danger');
-        card.innerHTML = '<strong>Error:</strong> ' + error;
-    });
-}
-</script>
     .table {
         font-size: 0.75rem !important;
     }
@@ -417,6 +487,72 @@ function runSensitivity(event) {
     cursor: help;
 }
 </style>
+
+<script>
+function runSensitivity(event) {
+    event.preventDefault();
+    var card = document.getElementById('sensitivityResultsCard');
+    var button = document.getElementById('runSensitivityBtn');
+    if (!card || !button) {
+        return;
+    }
+
+    button.disabled = true;
+    card.classList.remove('d-none', 'alert-danger', 'alert-success');
+    card.classList.add('alert-info');
+    card.innerHTML = '<strong>Running sensitivity analysis...</strong>';
+
+    fetch('{% url "analysis:run_sensitivity" analysis.id %}', {
+        headers: {
+            'X-Requested-With': 'XMLHttpRequest'
+        },
+        credentials: 'same-origin'
+    })
+    .then(function(response) {
+        if (!response.ok) {
+            return response.text().then(function(text) {
+                try {
+                    var data = JSON.parse(text);
+                    throw new Error(data.error || data.message || 'Sensitivity analysis failed');
+                } catch (err) {
+                    throw new Error(text || response.statusText || 'Network error');
+                }
+            });
+        }
+        return response.json();
+    })
+    .then(function(data) {
+        if (data.error) {
+            throw new Error(data.error);
+        }
+
+        var results = data.results || {};
+        var items = Object.keys(results).map(function(well) {
+            var info = results[well];
+            return '<li><strong>' + well + '</strong>: ' +
+                   info.confidence + ' confidence, ' +
+                   'mean rank ' + info.rank_mean + ', ' +
+                   'rank std ' + info.rank_std + ', ' +
+                   'rank variance ' + info.rank_variance + ', ' +
+                   'rank range ' + info.rank_5th + '-' + info.rank_95th + '</li>';
+        });
+
+        card.classList.remove('alert-info');
+        card.classList.add('alert-success');
+        card.innerHTML = '<h5>Sensitivity Results</h5>' +
+                         '<p>Monte Carlo sensitivity analysis completed successfully.</p>' +
+                         '<ul>' + items.join('') + '</ul>';
+    })
+    .catch(function(error) {
+        card.classList.remove('alert-info');
+        card.classList.add('alert-danger');
+        card.innerHTML = '<strong>Error:</strong> ' + (error.message || error);
+    })
+    .finally(function() {
+        button.disabled = false;
+    });
+}
+</script>
 {% endblock %}
 
 {% block extra_js %}
@@ -451,14 +587,14 @@ function filterTable() {
     
     rows.forEach(function(row) {
         var cells = row.querySelectorAll('td');
-        if (cells.length < 12) return;
+        if (cells.length < 13) return;
         
         var well = cells[1].textContent.toLowerCase();
         var bsw = cells[2].querySelector('.badge')?.textContent?.trim() || '';
         var oil = cells[3].querySelector('.badge')?.textContent?.trim() || '';
         var glr = cells[4].querySelector('.badge')?.textContent?.trim() || '';
-        var summary = cells[11].textContent.toLowerCase();
-        var prodMethod = cells[10].textContent.toLowerCase();
+        var prodMethod = cells[11].textContent.toLowerCase();
+        var summary = cells[12].textContent.toLowerCase();
         
         var matchesSearch = !searchVal || well.includes(searchVal) || summary.includes(searchVal);
         var matchesBsw = !bswVal || bsw.toLowerCase() === (bswVal === 'true' ? 'yes' : 'no');

@@ -67,8 +67,8 @@
                     <li><strong>Missing Values:</strong>
                         <ul>
                         {% for field, missing in quality_report.missing_values.items %}
-                            {% if missing > 0 %}
-                            <li>{{ field }}: {{ missing }}</li>
+                            {% if missing.count > 0 %}
+                            <li>{{ field }}: {{ missing.count }} ({{ missing.percentage }}%)</li>
                             {% endif %}
                         {% endfor %}
                         </ul>
@@ -107,8 +107,8 @@
                         {% endfor %}
                     </tbody>
                 </table>
-                {% if upload.total_rows > 20 %}
-                <p class="text-muted">Showing first 20 of {{ upload.total_rows }} rows.</p>
+                {% if upload.total_rows > sample_data|length %}
+                <p class="text-muted">Showing first {{ sample_data|length }} of {{ upload.total_rows }} rows.</p>
                 {% endif %}
             </div>
             {% endif %}
@@ -119,6 +119,9 @@
                 </a>
                 <a href="{% url 'data_upload:column_mapping' upload.id %}" class="btn btn-secondary">
                     <i class="bi bi-arrow-left"></i> Back to Mapping
+                </a>
+                <a href="{% url 'data_upload:upload' %}" class="btn btn-outline-secondary">
+                    <i class="bi bi-upload"></i> Re-upload File
                 </a>
             </div>
             {% endif %}

@@ -25,6 +25,14 @@ class AnalysisWeightsForm(forms.ModelForm):
         help_text="Threshold multiplier for outlier detection",
         widget=forms.NumberInput(attrs={'class': 'form-control', 'step': '0.1'}),
     )
+
+    def clean_outlier_method(self):
+        method = self.cleaned_data.get('outlier_method')
+        return method or 'iqr'
+
+    def clean_outlier_threshold(self):
+        threshold = self.cleaned_data.get('outlier_threshold')
+        return threshold if threshold is not None else 1.5
     
     class Meta:
         model = AnalysisWeights
@@ -34,10 +42,10 @@ class AnalysisWeightsForm(forms.ModelForm):
             'outlier_method', 'outlier_threshold',
         ]
         widgets = {
-            'bsw_weight': forms.NumberInput(attrs={'class': 'form-control', 'min': 0, 'max': 200}),
-            'oil_rate_weight': forms.NumberInput(attrs={'class': 'form-control', 'min': 0, 'max': 200}),
-            'glr_weight': forms.NumberInput(attrs={'class': 'form-control', 'min': 0, 'max': 200}),
-            'tubing_pressure_weight': forms.NumberInput(attrs={'class': 'form-control', 'min': 0, 'max': 200}),
+            'bsw_weight': forms.NumberInput(attrs={'class': 'form-control', 'min': 0, 'max': 100}),
+            'oil_rate_weight': forms.NumberInput(attrs={'class': 'form-control', 'min': 0, 'max': 100}),
+            'glr_weight': forms.NumberInput(attrs={'class': 'form-control', 'min': 0, 'max': 100}),
+            'tubing_pressure_weight': forms.NumberInput(attrs={'class': 'form-control', 'min': 0, 'max': 100}),
             'economic_limit_oil_bopd': forms.NumberInput(attrs={'class': 'form-control', 'min': 0}),
             'gas_constraint_mmscf': forms.NumberInput(attrs={'class': 'form-control', 'min': 0, 'step': '0.1', 'placeholder': 'e.g., 10'}),
         }
@@ -69,7 +77,11 @@ class CompletionDataForm(forms.Form):
     well_id = forms.CharField(
         max_length=255,
         help_text="Well name (must match production data)",
-        widget=forms.TextInput(attrs={'class': 'form-control', 'placeholder': 'e.g., WELL-001'}),
+        widget=forms.TextInput(attrs={
+            'class': 'form-control',
+            'placeholder': 'e.g., WELL-001',
+            'list': 'wellOptions'
+        }),
     )
     mandrel_depths = forms.CharField(
         help_text="Comma-separated mandrel depths in feet (e.g., 3000, 4000, 5000)",

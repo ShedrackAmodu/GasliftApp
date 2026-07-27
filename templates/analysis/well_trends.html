@@ -51,12 +51,16 @@
             <div class="alert alert-danger">
                 <i class="bi bi-exclamation-triangle"></i> {{ error }}
             </div>
-            {% else %}
-            <p class="lead">Review well performance trends before running the full analysis.</p>
+            {% endif %}
+            {% if analysis.status == 'failed' and analysis.error_message %}
+            <div class="alert alert-warning">
+                <i class="bi bi-exclamation-triangle"></i> Last analysis run failed: {{ analysis.error_message }}
+            </div>
+            {% endif %}
 
-            <div class="row mb-3">
-                <div class="col-md-6">
-                    <label for="wellSelect" class="form-label"><strong>View Well Trends:</strong></label>
+            <div class="row g-3 align-items-start">
+                <div class="col-12 col-lg-6">
+                    <label class="form-label" for="wellSelect"><strong>Inspect a Well:</strong></label>
                     {% if wells %}
                     <select class="form-select" id="wellSelect">
                         <option value="">-- Select Well to View --</option>
@@ -65,12 +69,12 @@
                         {% endfor %}
                     </select>
                     {% else %}
-                    <div class="alert alert-warning">No wells found in the data.</div>
+                    <div class="alert alert-warning mb-0">No wells found in the data.</div>
                     {% endif %}
                 </div>
-                <div class="col-md-6">
+                <div class="col-12 col-lg-6">
                     <label class="form-label"><strong>Select Wells for Analysis:</strong></label>
-                    <div class="border rounded p-2" style="max-height: 200px; overflow-y: auto;">
+                    <div class="border rounded p-2" style="max-height: 220px; overflow-y: auto;">
                         {% if wells %}
                         <div class="mb-2">
                             <button type="button" class="btn btn-sm btn-outline-primary me-2" onclick="selectAllWells(true)">Select All</button>
@@ -79,7 +83,12 @@
                         </div>
                         {% for well in wells %}
                         <div class="form-check form-check-inline">
-                            <input class="form-check-input well-checkbox" type="checkbox" value="{{ well }}" id="well_{{ forloop.counter }}" checked>
+                            <input class="form-check-input well-checkbox" type="checkbox" name="selected_wells" value="{{ well }}" id="well_{{ forloop.counter }}"
+                                {% if selected_wells %}
+                                    {% if well in selected_wells %}checked{% endif %}
+                                {% else %}
+                                    checked
+                                {% endif %}>
                             <label class="form-check-label" for="well_{{ forloop.counter }}">{{ well }}</label>
                         </div>
                         {% endfor %}
@@ -90,16 +99,23 @@
             </div>
 
             <div id="wellInfo" class="alert alert-secondary" style="display: none;">
-                <div class="row">
+                <div class="row g-3">
                     <div class="col-md-6">
                         <strong>Data Quality Score:</strong> <span id="dataQualityScore">-</span>%<br>
-                        <strong>Outliers Removed:</strong> <span id="outlierCount">-</span>
+                        <strong>Outliers Removed:</strong> <span id="outlierCount">-</span><br>
+                        <strong>Choke Normalized:</strong> <span id="chokeNormalized">No</span><br>
+                        <strong>Base Choke:</strong> <span id="baseChoke">{{ weights.base_choke_size|default:'Not set' }}</span>
                     </div>
                     <div class="col-md-6">
-                        <strong>Choke Normalized:</strong> <span id="chokeNormalized">No</span><br>
-                        <strong>Base Choke:</strong> <span id="baseChoke">{{ weights.base_choke_size|default:'Not set' }}</span><br>
-                        <strong>Outlier Filter:</strong> <span id="outlierMethod">{{ weights.outlier_method|default:'iqr' }}</span> ({{ weights.outlier_threshold|default:'1.5' }})
+                        <strong>Liquid Loading:</strong> <span id="liquidLoading">Pending</span><br>
+                        <strong>Velocity:</strong> <span id="velocitySummary">-</span><br>
+                        <strong>Economic Limit:</strong> <span id="economicSummary">-</span><br>
+                        <strong>Completion:</strong> <span id="completionSummary">Unknown</span>
                     </div>
+                </div>
+                <div class="mt-2 small text-muted">
+                    <span class="me-3"><i class="bi bi-droplet"></i> PVT diagnostics: {% if pvt_configured %}Configured{% else %}Not configured yet{% endif %}</span>
+                    <span><i class="bi bi-diagram-3"></i> Completion screening: {% if completion_uploaded %}Uploaded{% else %}Not uploaded yet{% endif %}</span>
                 </div>
             </div>
 
@@ -166,7 +182,7 @@
             <div class="mt-4 d-flex flex-wrap gap-2">
                 <form id="runAnalysisForm" method="post" action="{% url 'analysis:run_analysis' analysis.id %}" class="d-inline">
                     {% csrf_token %}
-                    <button type="submit" id="runAnalysisBtn" class="btn btn-success btn-lg">
+                    <button type="submit" id="runAnalysisBtn" class="btn btn-success btn-lg" disabled title="Please inspect at least one well trend before running analysis">
                         <i class="bi bi-play-fill"></i> Run Analysis
                     </button>
                 </form>
@@ -188,13 +204,13 @@
                 </a>
             </div>
             <div class="mt-3" id="analysisStatus" style="display: none;"></div>
-            {% endif %}
         </div>
     </div>
 </div>
 
 <script>
 let bswChart, oilChart, glrChart, tpChart;
+let viewedWell = false; // tracks whether user inspected at least one well
 
 // Map of chart objects for syncing
 const chartMap = {};
@@ -210,6 +226,7 @@ function loadWellData() {
         .then(data => {
             hideLoading();
             document.getElementById('chartsContainer').style.display = 'block';
+            document.getElementById('wellInfo').style.display = 'block';
 
             // Show well info
             if (data.data_quality_score !== undefined) {
@@ -219,6 +236,14 @@ function loadWellData() {
                 document.getElementById('outlierCount').textContent = allRejected.length;
                 document.getElementById('chokeNormalized').textContent = data.is_choke_normalized ? 'Yes' : 'No';
                 document.getElementById('baseChoke').textContent = '{{ weights.base_choke_size|default:"Not set" }}';
+                document.getElementById('liquidLoading').textContent = data.liquid_loading_flag ? 'Yes' : 'No';
+                document.getElementById('velocitySummary').textContent = (data.critical_velocity !== null && data.actual_velocity !== null)
+                    ? `${data.actual_velocity.toFixed(2)} / ${data.critical_velocity.toFixed(2)} ft/s`
+                    : 'Not available';
+                document.getElementById('economicSummary').textContent = data.days_to_economic_limit !== null
+                    ? `${data.days_to_economic_limit} days`
+                    : 'Not available';
+                document.getElementById('completionSummary').textContent = data.completion_feasibility === 'feasible' ? 'Feasible' : (data.completion_feasibility === 'pressure_limited' ? 'Pressure limited' : 'Unknown');
 
                 if (data.is_choke_normalized) {
                     document.getElementById('normalizationNote').classList.remove('d-none');
@@ -227,7 +252,7 @@ function loadWellData() {
 
             const commonOptions = {
                 responsive: true,
-                maintainAspectRatio: true,
+                maintainAspectRatio: false,
                 plugins: {
                     legend: { display: true },
                     tooltip: {
@@ -279,6 +304,10 @@ function loadWellData() {
                 })
             });
             chartMap.bsw = bswChart;
+            requestAnimationFrame(() => {
+                bswChart.resize();
+                bswChart.update('none');
+            });
 
             const ctx2 = document.getElementById('oilChart').getContext('2d');
             if (oilChart) oilChart.destroy();
@@ -294,6 +323,10 @@ function loadWellData() {
                 })
             });
             chartMap.oil = oilChart;
+            requestAnimationFrame(() => {
+                oilChart.resize();
+                oilChart.update('none');
+            });
 
             const ctx3 = document.getElementById('glrChart').getContext('2d');
             if (glrChart) glrChart.destroy();
@@ -309,6 +342,10 @@ function loadWellData() {
                 })
             });
             chartMap.glr = glrChart;
+            requestAnimationFrame(() => {
+                glrChart.resize();
+                glrChart.update('none');
+            });
 
             const ctx4 = document.getElementById('tpChart').getContext('2d');
             if (tpChart) tpChart.destroy();
@@ -324,6 +361,10 @@ function loadWellData() {
                 })
             });
             chartMap.tp = tpChart;
+            requestAnimationFrame(() => {
+                tpChart.resize();
+                tpChart.update('none');
+            });
 
             // Synchronize tooltips across all charts
             setupChartSync();
@@ -331,6 +372,13 @@ function loadWellData() {
             // Store rejected indices globally for toggle
             window.currentRejectedIndices = data.rejected_indices || {};
             window.showRejectedPoints = false;
+            // Mark that the user inspected this well and enable Run Analysis
+            viewedWell = true;
+            const runBtn = document.getElementById('runAnalysisBtn');
+            if (runBtn) {
+                runBtn.disabled = false;
+                runBtn.removeAttribute('title');
+            }
             // Reset the toggle checkbox
             document.getElementById('showRejected').checked = false;
         })
@@ -386,9 +434,19 @@ function setupChartSync() {
 // Helper function to prepare chart data with rejected points
 function prepareChartData(dates, values, rejectedIndices, borderColor, backgroundColor, label) {
     const datasets = [];
+    const safeValues = Array.isArray(values) ? values : [];
+    const safeDates = Array.isArray(dates) ? dates : [];
+    const length = Math.min(safeValues.length, safeDates.length || safeValues.length);
+
+    const normalizedValues = safeValues.slice(0, length).map(v => {
+        if (v === null || v === undefined || v === '' || Number.isNaN(Number(v))) {
+            return null;
+        }
+        return Number(v);
+    });
 
     // Main data line (non-rejected points)
-    const mainData = values.map((v, i) => rejectedIndices.includes(i) ? null : v);
+    const mainData = normalizedValues.map((v, i) => rejectedIndices.includes(i) ? null : v);
     datasets.push({
         label: label,
         data: mainData,
@@ -397,13 +455,13 @@ function prepareChartData(dates, values, rejectedIndices, borderColor, backgroun
         tension: 0.4,
         fill: true,
         spanGaps: false,
-        pointRadius: mainData.map((v, i) => v === null ? 0 : 3),
+        pointRadius: mainData.map((v) => v === null ? 0 : 3),
         pointBackgroundColor: borderColor,
         pointHoverRadius: 5
     });
 
     // Rejected points (hidden by default)
-    const rejectedData = values.map((v, i) => rejectedIndices.includes(i) ? v : null);
+    const rejectedData = normalizedValues.map((v, i) => rejectedIndices.includes(i) ? v : null);
     datasets.push({
         label: 'Rejected (outliers)',
         data: rejectedData,
@@ -466,8 +524,11 @@ document.addEventListener('DOMContentLoaded', function() {
     });
     updateSelectedCount();
 
-    // Load well data on selection change
-    document.getElementById('wellSelect').addEventListener('change', loadWellData);
+    // Load well data on selection change (guard if selector absent)
+    const wellSelectElem = document.getElementById('wellSelect');
+    if (wellSelectElem) {
+        wellSelectElem.addEventListener('change', loadWellData);
+    }
 });
 
 const runAnalysisForm = document.getElementById('runAnalysisForm');
@@ -475,7 +536,7 @@ const runAnalysisBtn = document.getElementById('runAnalysisBtn');
 const analysisStatus = document.getElementById('analysisStatus');
 
 if (runAnalysisForm) {
-    runAnalysisForm.addEventListener('submit', function(e) {
+        runAnalysisForm.addEventListener('submit', function(e) {
         e.preventDefault();
 
         // Collect selected wells
@@ -483,6 +544,14 @@ if (runAnalysisForm) {
         document.querySelectorAll('.well-checkbox:checked').forEach(cb => {
             selectedWells.push(cb.value);
         });
+
+            // Require the user to inspect at least one well trend before running
+            if (!viewedWell) {
+                analysisStatus.style.display = 'block';
+                analysisStatus.className = 'alert alert-warning';
+                analysisStatus.innerHTML = '<i class="bi bi-exclamation-triangle"></i> Please inspect at least one well trend before running the analysis.';
+                return;
+            }
 
         if (selectedWells.length === 0) {
             analysisStatus.style.display = 'block';

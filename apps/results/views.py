@@ -22,26 +22,54 @@ def view_results(request, analysis_id):
     well_trends = WellTrendAnalysis.objects.filter(analysis=analysis).order_by('rank')
     if analysis.selected_wells:
         well_trends = well_trends.filter(well_id__in=analysis.selected_wells)
-    
-    paginator = Paginator(well_trends, 25)  # 25 per page
+
+    all_trends = list(well_trends)
+    paginator = Paginator(all_trends, 25)  # 25 per page
     page_number = request.GET.get('page', 1)
     page_obj = paginator.get_page(page_number)
-    
+
     # Get completion data for context
-    completion_data = {}
-    for completion in CompletionData.objects.filter(analysis=analysis):
-        completion_data[completion.well_id] = completion
-    
+    completion_data = {completion.well_id: completion for completion in CompletionData.objects.filter(analysis=analysis)}
+
     # Annotate well trends with completion feasibility
     for trend in page_obj.object_list:
         trend.completion_info = completion_data.get(trend.well_id)
-    
+
+    urgent_wells = [trend.well_id for trend in all_trends if trend.days_to_economic_limit is not None and trend.days_to_economic_limit <= 90]
+    liquid_loaded_wells = [trend.well_id for trend in all_trends if trend.liquid_loading_flag]
+    feasible_completion_wells = [trend.well_id for trend in all_trends if trend.completion_feasibility == 'feasible']
+
+    score_values = [trend.candidate_score or 0 for trend in all_trends]
+    avg_score = round(sum(score_values) / len(score_values), 1) if score_values else 0
+    high_priority = sum(1 for s in score_values if s >= 25)
+    medium_priority = sum(1 for s in score_values if 15 <= s < 25)
+    low_priority = sum(1 for s in score_values if s < 15)
+    avg_quality = round(sum((trend.data_quality_score or 0) for trend in all_trends) / len(all_trends), 1) if all_trends else 0
+
+    diagnostic_summary = {
+        'top_candidate': all_trends[0].well_id if all_trends else 'N/A',
+        'top_candidate_score': all_trends[0].candidate_score if all_trends else 0,
+        'liquid_loaded': len(liquid_loaded_wells),
+        'liquid_loaded_wells': liquid_loaded_wells,
+        'urgent': len(urgent_wells),
+        'urgent_wells': urgent_wells,
+        'feasible_completions': len(feasible_completion_wells),
+        'feasible_completion_wells': feasible_completion_wells,
+        'recommended_gas_total': round(sum(trend.recommended_gas_mmscf or 0 for trend in all_trends), 2),
+        'average_score': avg_score,
+        'high_priority': high_priority,
+        'medium_priority': medium_priority,
+        'low_priority': low_priority,
+        'average_quality': avg_quality,
+    }
+
     context = {
         'analysis': analysis,
         'page_obj': page_obj,
         'well_trends': page_obj.object_list,
-        'total_wells': well_trends.count(),
+        'total_wells': len(all_trends),
         'completion_data': completion_data,
+        'diagnostic_summary': diagnostic_summary,
     }
     
     return render(request, 'results/view_results.html', context)
@@ -83,6 +111,7 @@ def export_excel(request, analysis_id):
         'Liquid Loading Flag',
         'Critical Velocity (ft/s)',
         'Days to Economic Limit',
+        'Urgency',
         'Recommended Gas (MMscf/d)',
         'Completion Feasibility',
         'Summary Comment',
@@ -122,6 +151,7 @@ def export_excel(request, analysis_id):
             'Yes' if trend.liquid_loading_flag else 'No',
             trend.critical_velocity if trend.critical_velocity is not None else '',
             trend.days_to_economic_limit if trend.days_to_economic_limit is not None else '',
+            trend.urgency_label,
             trend.recommended_gas_mmscf if trend.recommended_gas_mmscf is not None else '',
             trend.get_completion_feasibility_display() if trend.completion_feasibility else 'Unknown',
             trend.summary_comment,
@@ -133,7 +163,7 @@ def export_excel(request, analysis_id):
         'F': 10, 'G': 12, 'H': 15, 'I': 12, 'J': 15,
         'K': 15, 'L': 15, 'M': 20, 'N': 15, 'O': 18,
         'P': 16, 'Q': 16, 'R': 16, 'S': 18, 'T': 22,
-        'U': 22, 'V': 25, 'W': 40,
+        'U': 12, 'V': 22, 'W': 25, 'X': 40,
     }
     for col, width in column_widths.items():
         ws.column_dimensions[col].width = width
@@ -169,7 +199,7 @@ def export_csv(request, analysis_id):
         'Prod Method', 'Test Status', 'Flow Line Pressure (psi)',
         'Well Choke Size', 'Data Quality Score', 'Outliers Removed',
         'Choke Normalized', 'Liquid Loading Flag', 'Critical Velocity (ft/s)',
-        'Days to Economic Limit', 'Recommended Gas (MMscf/d)',
+        'Days to Economic Limit', 'Urgency', 'Recommended Gas (MMscf/d)',
         'Completion Feasibility', 'Summary Comment',
     ])
     
@@ -195,6 +225,7 @@ def export_csv(request, analysis_id):
             'Yes' if trend.liquid_loading_flag else 'No',
             trend.critical_velocity if trend.critical_velocity is not None else '',
             trend.days_to_economic_limit if trend.days_to_economic_limit is not None else '',
+            trend.urgency_label,
             trend.recommended_gas_mmscf if trend.recommended_gas_mmscf is not None else '',
             trend.get_completion_feasibility_display() if trend.completion_feasibility else 'Unknown',
             trend.summary_comment,

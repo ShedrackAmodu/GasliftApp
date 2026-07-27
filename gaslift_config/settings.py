@@ -2,6 +2,7 @@
 Django settings for gaslift_project project.
 """
 import os
+import sys
 from pathlib import Path
 
 # Build paths inside the project
@@ -13,7 +14,7 @@ SECRET_KEY = 'django-insecure-dev-key-change-in-production'
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = True
 
-ALLOWED_HOSTS = ['Amodu.pythonanywhere.com', 'localhost', '127.0.0.1', 'localhost:8000', '127.0.0.1:8000', 'testserver']
+ALLOWED_HOSTS = ['nordatech.pythonanywhere.com', 'localhost', '127.0.0.1', 'localhost:8000', '127.0.0.1:8000', 'testserver']
 
 # Application definition
 INSTALLED_APPS = [
@@ -59,6 +60,7 @@ TEMPLATES = [
                 'django.template.context_processors.request',
                 'django.contrib.auth.context_processors.auth',
                 'django.contrib.messages.context_processors.messages',
+                'django.template.context_processors.static',
             ],
         },
     },
@@ -89,7 +91,13 @@ STATIC_ROOT = os.path.join(BASE_DIR, 'staticfiles')
 STATICFILES_DIRS = [os.path.join(BASE_DIR, 'static')]
 
 # WhiteNoise for serving static files in production
-STATICFILES_STORAGE = 'whitenoise.storage.CompressedManifestStaticFilesStorage'
+# Use regular staticfiles storage during tests to avoid manifest lookup failures.
+TESTING = len(sys.argv) > 1 and sys.argv[1] == 'test'
+STATICFILES_STORAGE = (
+    'django.contrib.staticfiles.storage.StaticFilesStorage'
+    if TESTING
+    else 'whitenoise.storage.CompressedManifestStaticFilesStorage'
+)
 
 # Media files
 MEDIA_URL = '/media/'

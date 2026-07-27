@@ -55,15 +55,50 @@
                     <li><strong>Available compression:</strong> Maximum pressure your compressor can deliver (psi)</li>
                 </ul>
             </div>
-            
-            <form id="csvUploadForm" method="post" enctype="multipart/form-data" action="{% url 'analysis:upload_completion' analysis.id %}">
-                {% csrf_token %}
-                <div class="mb-3">
-                    <label for="id_completion_file" class="form-label"><strong>Or upload CSV file (optional)</strong></label>
-                    <input type="file" name="completion_file" id="id_completion_file" class="form-control" accept=".csv">
-                    <div class="form-text">Upload a CSV with columns: <em>well_id, mandrel_depths, packer_depth, tubing_od, tubing_id, available_compression_pressure</em></div>
+
+            <div class="row g-3 mb-4">
+                <div class="col-lg-7">
+                    <form id="csvUploadForm" method="post" enctype="multipart/form-data" action="{% url 'analysis:upload_completion' analysis.id %}">
+                        {% csrf_token %}
+                        <div class="mb-3">
+                            <label for="id_completion_file" class="form-label"><strong>Or upload CSV file (optional)</strong></label>
+                            <input type="file" name="completion_file" id="id_completion_file" class="form-control" accept=".csv">
+                            <div class="form-text">Upload a CSV with columns: <em>well_id, mandrel_depths, packer_depth, tubing_od, tubing_id, available_compression_pressure</em></div>
+                        </div>
+                    </form>
                 </div>
-            </form>
+                <div class="col-lg-5">
+                    <div class="card border-light shadow-sm h-100">
+                        <div class="card-body">
+                            <h5><i class="bi bi-download"></i> Bulk upload helper</h5>
+                            <p class="small text-muted mb-3">Download a ready-to-fill CSV template for multiple wells and keep the workflow moving.</p>
+                            <button type="button" id="downloadTemplateBtn" class="btn btn-outline-secondary btn-sm">
+                                <i class="bi bi-file-earmark-spreadsheet"></i> Download CSV template
+                            </button>
+                            <div class="mt-3">
+                                <h6 class="fw-bold">Saved completion records</h6>
+                                {% if existing_completions %}
+                                <ul class="list-group list-group-flush">
+                                    {% for completion in existing_completions %}
+                                    <li class="list-group-item px-0">
+                                        <div class="d-flex justify-content-between align-items-center">
+                                            <strong>{{ completion.well_id }}</strong>
+                                            <span class="badge {% if completion.feasibility_flag == 'feasible' %}bg-success{% elif completion.feasibility_flag == 'requires_deepening' %}bg-warning text-dark{% else %}bg-danger{% endif %}">
+                                                {{ completion.get_feasibility_flag_display }}
+                                            </span>
+                                        </div>
+                                        <div class="small text-muted">Required pressure: {{ completion.injection_pressure_required|default:'-' }} psi</div>
+                                    </li>
+                                    {% endfor %}
+                                </ul>
+                                {% else %}
+                                <p class="small text-muted mb-0">No completion records saved yet for this analysis.</p>
+                                {% endif %}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
 
             <form method="post">
                 {% csrf_token %}
@@ -75,8 +110,25 @@
                                 <strong>Well ID</strong>
                             </label>
                             {{ form.well_id }}
+                            <datalist id="wellOptions">
+                                {% for well in wells %}
+                                <option value="{{ well }}"></option>
+                                {% endfor %}
+                            </datalist>
+                            {% if form.well_id.errors %}
+                            <div class="invalid-feedback d-block">
+                                {% for error in form.well_id.errors %}
+                                {{ error }}<br>
+                                {% endfor %}
+                            </div>
+                            {% endif %}
                             <div class="form-text">
-                                Must match the well name in your production data
+                                Must match the well name in your production data.
+                                {% if wells %}
+                                Start typing to choose one of the {{ wells|length }} wells from the upload.
+                                {% else %}
+                                No well list available for this analysis.
+                                {% endif %}
                             </div>
                         </div>
                     </div>
@@ -175,6 +227,26 @@ if (csvInput) {
                 this.value = '';
             }
         }
+    });
+}
+
+const downloadTemplateBtn = document.getElementById('downloadTemplateBtn');
+if (downloadTemplateBtn) {
+    downloadTemplateBtn.addEventListener('click', function() {
+        const template = [
+            'well_id,mandrel_depths,packer_depth,tubing_od,tubing_id,available_compression_pressure',
+            'WELL-001,"3000, 4000, 5000",2500,2.875,2.441,2500',
+            'WELL-002,"3200, 4500",2600,2.875,2.441,2400'
+        ].join('\n');
+        const blob = new Blob([template], { type: 'text/csv;charset=utf-8;' });
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        link.href = url;
+        link.download = 'completion_template.csv';
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        URL.revokeObjectURL(url);
     });
 }
 </script>

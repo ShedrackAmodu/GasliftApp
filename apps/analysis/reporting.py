@@ -81,6 +81,22 @@ class ReportGenerator:
         if isinstance(value, int):
             return str(value)
         return f"{value:.{precision}f}"
+
+    @staticmethod
+    def _urgency_label(trend):
+        if hasattr(trend, 'urgency_label'):
+            try:
+                return trend.urgency_label
+            except Exception:
+                pass
+        days = getattr(trend, 'days_to_economic_limit', None)
+        if days is None:
+            return 'Unknown'
+        if days <= 90:
+            return 'High'
+        if days <= 180:
+            return 'Medium'
+        return 'Low'
     
     @staticmethod
     def generate_executive_html(analysis, well_trends, completion_data=None):
@@ -162,9 +178,20 @@ class ReportGenerator:
         # ROM CAPEX estimates
         rom_capex = 500000  # $500k per well (typical)
         total_recommended = top5.count()
-        
+
         selected_scope_label = 'Selected well scope' if analysis.selected_wells else 'All analyzed wells'
         selected_scope_detail = f"{len(analysis.selected_wells)} selected well(s)" if analysis.selected_wells else f"{total_wells} well(s) analyzed"
+
+        status_label = analysis.get_status_display() if hasattr(analysis, 'get_status_display') else getattr(analysis, 'status', 'Unknown')
+        completed_at = getattr(analysis, 'completed_at', None)
+        completed_label = f" Completed at {completed_at.strftime('%B %d, %Y at %H:%M')}" if completed_at else ''
+        status_summary = f"Analysis status: {status_label}.{completed_label}"
+        if getattr(analysis, 'status', None) == 'completed':
+            summary_lines.insert(0, 'Analysis was completed successfully and results were processed.')
+        else:
+            summary_lines.insert(0, status_summary)
+
+        summary_text = ' '.join(summary_lines)
 
         html = f"""
 <!DOCTYPE html>
@@ -235,6 +262,7 @@ class ReportGenerator:
         <p>Generated: {datetime.now().strftime('%B %d, %Y at %H:%M')}</p>
         <p>Dataset: <strong>{analysis.upload.filename}</strong> | Wells Analyzed: <strong>{total_wells}</strong></p>
         <p><strong>{selected_scope_label}</strong>: <strong>{selected_scope_detail}</strong></p>
+        <p><strong>{status_summary}</strong></p>
     </div>
 
     <div class="summary-text">
@@ -445,7 +473,7 @@ class ReportGenerator:
             <tr><td colspan="7" class="section-label">Economics & Gas Allocation</td></tr>
             <tr>
                 <td colspan="2">Days to Econ Limit: <strong>{trend.days_to_economic_limit if trend.days_to_economic_limit else 'N/A'}</strong></td>
-                <td colspan="2">Projected 6mo: {f'{trend.projected_oil_rate_6mo:.1f}' if trend.projected_oil_rate_6mo else 'N/A'} bopd</td>
+                <td colspan="2">Urgency: <strong>{ReportGenerator._urgency_label(trend)}</strong></td>
                 <td colspan="2">Rec. Gas: {f'{trend.recommended_gas_mmscf:.2f}' if trend.recommended_gas_mmscf else 'N/A'} MMscf/d<br>Util Eff: {f'{trend.gas_utilization_efficiency:.0f}' if trend.gas_utilization_efficiency else 'N/A'}%</td>
                 <td><small>{trend.summary_comment}</small></td>
             </tr>
@@ -466,6 +494,7 @@ class ReportGenerator:
             <th>GLR</th>
             <th>Liq Load</th>
             <th>Days to Limit</th>
+            <th>Urgency</th>
             <th>Feasibility</th>
             <th>Rec. Gas (MMscf/d)</th>
         </tr>
@@ -488,6 +517,7 @@ class ReportGenerator:
             <td>{glr_badge}</td>
             <td>{ll_badge}</td>
             <td>{trend.days_to_economic_limit if trend.days_to_economic_limit else 'N/A'}</td>
+            <td>{ReportGenerator._urgency_label(trend)}</td>
             <td>{feasibility_display}</td>
             <td>{f'{trend.recommended_gas_mmscf:.2f}' if trend.recommended_gas_mmscf else 'N/A'}</td>
         </tr>

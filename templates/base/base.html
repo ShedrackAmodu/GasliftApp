@@ -4,7 +4,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <link rel="icon" type="image/x-icon" href="{{ STATIC_URL }}favicon.ico" />
+    <link rel="icon" type="image/x-icon" href="{% static 'favicon.ico' %}" />
     <title>{% block title %}Gas Lift Opportunity Automation System{% endblock %}</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.0/font/bootstrap-icons.css" rel="stylesheet">
@@ -834,17 +834,18 @@
 
         /* Navbar dropdown on mobile */
         @media (max-width: 768px) {
-            :root {
-                --navbar-height: 60px;
+            .btn:not(.btn-group .btn) {
+                min-height: 44px;
+                padding: 0.5rem 1rem;
+                width: 100%;
             }
-            .sidebar {
-                transform: translateX(-100%);
-                width: min(100%, 280px);
-                max-width: 100%;
-                background: rgba(255,255,255,0.98);
+            .btn-group .btn {
+                width: auto;
+                min-height: 38px;
             }
-            .sidebar.show {
-                transform: translateX(0);
+            .btn-sm {
+                min-height: 36px;
+                padding: 0.35rem 0.75rem;
             }
             .sidebar .menu-item {
                 white-space: normal;
@@ -945,18 +946,6 @@
             .navbar-brand i {
                 font-size: 1.2rem;
             }
-            .btn {
-                min-height: 44px;
-                padding: 0.5rem 1rem;
-                width: 100%;
-            }
-            .btn-group .btn {
-                width: auto;
-            }
-            .btn-sm {
-                min-height: 36px;
-                padding: 0.35rem 0.75rem;
-            }
             .form-control, .form-select {
                 min-height: 44px;
                 font-size: 1rem;
@@ -1010,6 +999,131 @@
             }
             .breadcrumb-custom {
                 padding: 0.5rem 0.7rem;
+                font-size: 0.8rem;
+            }
+            .table td, .table th {
+                padding: 0.4rem 0.5rem;
+                white-space: normal;
+                word-break: break-word;
+            }
+            .table thead th {
+                font-size: 0.72rem;
+                white-space: normal;
+            }
+            .stat-card {
+                padding: 1rem 0.75rem;
+            }
+        }
+
+        /* Ultra-small screens (<400px) */
+        @media (max-width: 400px) {
+            :root {
+                --navbar-height: 54px;
+            }
+            .navbar .container-fluid {
+                padding: 0 0.5rem;
+            }
+            .brand-text {
+                font-size: 0.78rem;
+            }
+            .navbar-brand i {
+                font-size: 1.1rem;
+                margin-right: 4px;
+            }
+            .sidebar-toggle {
+                font-size: 1.3rem;
+                padding: 0 0.3rem;
+            }
+            .main-content {
+                padding: 0.5rem;
+            }
+            .page-hero {
+                padding: 0.75rem;
+                border-radius: 12px;
+            }
+            .page-hero h2 {
+                font-size: 1rem;
+            }
+            .page-hero p {
+                font-size: 0.85rem;
+            }
+            .card-body {
+                padding: 0.75rem;
+            }
+            .card-header {
+                padding: 0.7rem 0.85rem;
+            }
+            .card-header h2, .card-header h3 {
+                font-size: 0.9rem;
+            }
+            .breadcrumb-custom {
+                padding: 0.4rem 0.5rem;
+                font-size: 0.75rem;
+            }
+            .table {
+                font-size: 0.75rem;
+            }
+            .table td, .table th {
+                padding: 0.3rem 0.4rem;
+            }
+            .stat-card .stat-number {
+                font-size: 1.2rem;
+            }
+            .stat-card .stat-label {
+                font-size: 0.65rem;
+            }
+            .footer {
+                padding: 0.75rem 0;
+                font-size: 0.75rem;
+            }
+            .footer a {
+                display: inline-block;
+                margin-bottom: 0.25rem;
+            }
+            .step {
+                flex: 0 1 calc(50% - 0.5rem);
+                min-width: 60px;
+            }
+            .step-circle {
+                width: 32px;
+                height: 32px;
+                font-size: 0.75rem;
+                border-width: 2px;
+            }
+            .step-indicator::before {
+                top: 16px;
+                left: 15px;
+                right: 15px;
+                height: 2px;
+            }
+            .step-indicator {
+                padding: 0.25rem 0.5rem;
+                gap: 0.5rem;
+            }
+            .stat-card {
+                padding: 0.75rem 0.5rem;
+            }
+            .stat-card .stat-icon {
+                font-size: 1.5rem;
+                margin-bottom: 0.3rem;
+            }
+            .chart-container {
+                height: 200px !important;
+            }
+            .btn {
+                font-size: 0.85rem;
+                min-height: 40px;
+            }
+            .btn-sm {
+                min-height: 32px;
+                font-size: 0.8rem;
+            }
+            .form-control, .form-select {
+                min-height: 40px;
+                font-size: 0.9rem;
+            }
+            .pagination .page-link {
+                padding: 0.35rem 0.6rem;
                 font-size: 0.8rem;
             }
         }

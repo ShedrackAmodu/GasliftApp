@@ -6,6 +6,8 @@ from django.utils import timezone
 from django.db import transaction
 from django.contrib import messages
 from datetime import datetime
+import json
+import re
 import numpy as np
 import csv
 import io
@@ -18,7 +20,7 @@ from .pvt import PVTProperties as PVT
 from .ipr_calculator import IPRCalculator, LiquidLoadingDiagnostics
 from .completion import CompletionFeasibilityChecker
 from .sensitivity import MonteCarloSensitivity
-from apps.data_upload.utils import DataProcessor, _parse_date
+from apps.data_upload.utils import DataProcessor, _parse_date, _coerce_numeric
 
 
 @login_required(login_url='accounts:login')
@@ -87,6 +89,7 @@ def well_trends(request, analysis_id):
         })
 
     wells = _unique_wells(rows)
+    selected_wells = analysis.selected_wells or []
 
     if len(wells) == 0:
         return render(request, 'analysis/well_trends.html', {
@@ -97,8 +100,11 @@ def well_trends(request, analysis_id):
     context = {
         'analysis': analysis,
         'wells': wells,
+        'selected_wells': selected_wells,
         'upload': analysis.upload,
         'weights': AnalysisWeights.objects.filter(analysis=analysis).first(),
+        'pvt_configured': PVTProperties.objects.filter(analysis=analysis).exists(),
+        'completion_uploaded': CompletionData.objects.filter(analysis=analysis).exists(),
     }
 
     return render(request, 'analysis/well_trends.html', context)
@@ -110,41 +116,71 @@ def get_well_data(request, analysis_id, well_name):
     """API endpoint to get well trend data for charts"""
     analysis = get_object_or_404(AnalysisSession, id=analysis_id, user=request.user)
 
+    def _format_date(value):
+        if value in (None, ''):
+            return ''
+        try:
+            return str(_parse_date(value)).split()[0]
+        except (ValueError, TypeError):
+            return ''
+
     try:
-        # Try to get pre-computed analysis from database
-        trend = WellTrendAnalysis.objects.filter(analysis=analysis, well_id=well_name).first()
-        
-        if trend and trend.original_values is not None and trend.original_values:
-            # Use stored corrected values and original values
-            dates = [str(_parse_date(r.get('Date', ''))).split()[0] for r in _load_data(analysis.upload, ColumnMapping.objects.get(upload=analysis.upload).mapping) 
-                      if r.get('Well') == well_name]
-            data = {
-                'dates': dates,
-                'bsw': trend.corrected_values.get('bsw', trend.original_values.get('bsw', [])),
-                'oil_rate': trend.corrected_values.get('oil_rate', trend.original_values.get('oil_rate', [])),
-                'glr': trend.corrected_values.get('glr', trend.original_values.get('glr', [])),
-                'tubing_pressure': trend.corrected_values.get('tp', trend.original_values.get('tp', [])),
-                'rejected_indices': trend.rejected_indices,
-                'is_choke_normalized': trend.is_choke_normalized,
-                'data_quality_score': trend.data_quality_score,
-            }
-            return JsonResponse(data)
-        
-        # Fallback to raw data
         col_mapping = ColumnMapping.objects.get(upload=analysis.upload)
         rows = _load_data(analysis.upload, col_mapping.mapping)
-        well_rows = [r for r in rows if r.get('Well') == well_name]
-        well_rows.sort(key=lambda r: _parse_date(r.get('Date', '')) if r.get('Date') else datetime.min)
-        
+        well_name_normalized = _normalize_well_id(well_name)
+        well_rows = [r for r in rows if _normalize_well_id(r.get('Well')) == well_name_normalized]
+        well_rows.sort(key=lambda r: _parse_date(r.get('Date')) if r.get('Date') not in (None, '') else datetime.min)
+        dates = [_format_date(r.get('Date')) for r in well_rows]
+
+        # Try to get pre-computed analysis from database
+        trend = None
+        for candidate in WellTrendAnalysis.objects.filter(analysis=analysis):
+            if _normalize_well_id(candidate.well_id) == well_name_normalized:
+                trend = candidate
+                break
+
+        if trend and trend.original_values is not None and trend.original_values:
+            series_length = len(dates)
+            data = {
+                'dates': dates,
+                'bsw': _normalize_chart_series(trend.corrected_values.get('bsw', trend.original_values.get('bsw', [])), series_length),
+                'oil_rate': _normalize_chart_series(trend.corrected_values.get('oil_rate', trend.original_values.get('oil_rate', [])), series_length),
+                'glr': _normalize_chart_series(trend.corrected_values.get('glr', trend.original_values.get('glr', [])), series_length),
+                'tubing_pressure': _normalize_chart_series(trend.corrected_values.get('tp', trend.original_values.get('tp', [])), series_length),
+                'rejected_indices': trend.rejected_indices or {},
+                'is_choke_normalized': trend.is_choke_normalized,
+                'data_quality_score': trend.data_quality_score,
+                'liquid_loading_flag': trend.liquid_loading_flag,
+                'critical_velocity': trend.critical_velocity,
+                'actual_velocity': trend.actual_velocity,
+                'days_to_economic_limit': trend.days_to_economic_limit,
+                'projected_oil_rate_6mo': trend.projected_oil_rate_6mo,
+                'recommended_gas_mmscf': trend.recommended_gas_mmscf,
+                'completion_feasibility': trend.completion_feasibility,
+                'pvt_configured': PVTProperties.objects.filter(analysis=analysis).exists(),
+                'completion_uploaded': CompletionData.objects.filter(analysis=analysis, well_id=well_name).exists(),
+            }
+            return JsonResponse(data)
+
+        # Fallback to raw data
         data = {
-            'dates': [str(_parse_date(r.get('Date', ''))).split()[0] for r in well_rows],
-            'bsw': _safe_series_to_list([r.get('BS&W (%)') for r in well_rows]),
-            'oil_rate': _safe_series_to_list([r.get('Net Oil (bopd)') for r in well_rows]),
-            'glr': _safe_series_to_list([r.get('Form.GLR (scf/bbl)') for r in well_rows]),
-            'tubing_pressure': _safe_series_to_list([r.get('Tubing Pressure (psi)') for r in well_rows]),
+            'dates': dates,
+            'bsw': _normalize_chart_series([r.get('BS&W (%)') for r in well_rows], len(dates)),
+            'oil_rate': _normalize_chart_series([r.get('Net Oil (bopd)') for r in well_rows], len(dates)),
+            'glr': _normalize_chart_series([r.get('Form.GLR (scf/bbl)') for r in well_rows], len(dates)),
+            'tubing_pressure': _normalize_chart_series([r.get('Tubing Pressure (psi)') for r in well_rows], len(dates)),
             'rejected_indices': {},
             'is_choke_normalized': False,
             'data_quality_score': 100.0,
+            'liquid_loading_flag': False,
+            'critical_velocity': None,
+            'actual_velocity': None,
+            'days_to_economic_limit': None,
+            'projected_oil_rate_6mo': None,
+            'recommended_gas_mmscf': None,
+            'completion_feasibility': 'unknown',
+            'pvt_configured': PVTProperties.objects.filter(analysis=analysis).exists(),
+            'completion_uploaded': CompletionData.objects.filter(analysis=analysis, well_id=well_name).exists(),
         }
         return JsonResponse(data)
     except ColumnMapping.DoesNotExist:
@@ -168,6 +204,9 @@ def run_analysis(request, analysis_id):
             # Get column mapping
             col_mapping = ColumnMapping.objects.get(upload=analysis.upload)
             weights, _ = AnalysisWeights.objects.get_or_create(analysis=analysis)
+            completion_records = {}
+            for completion in CompletionData.objects.filter(analysis=analysis):
+                completion_records[_normalize_well_id(completion.well_id)] = completion
 
             # Load data
             rows = _load_data(analysis.upload, col_mapping.mapping)
@@ -180,14 +219,44 @@ def run_analysis(request, analysis_id):
             # Delete any existing well trends for this analysis (prevents duplicates on re-run)
             WellTrendAnalysis.objects.filter(analysis=analysis).delete()
 
-            # Get selected wells from POST data (JSON string) and save to model
-            selected_wells_raw = request.POST.get('selected_wells', '[]')
-            try:
-                import json
-                selected_wells = json.loads(selected_wells_raw)
-            except (json.JSONDecodeError, TypeError):
-                selected_wells = []
-            
+            # Get selected wells from POST data and save to model.
+            selected_wells = []
+            post_wells = request.POST.getlist('selected_wells')
+            if post_wells:
+                if len(post_wells) == 1:
+                    raw = post_wells[0]
+                    try:
+                        parsed = json.loads(raw)
+                        if isinstance(parsed, list):
+                            selected_wells = [str(item) for item in parsed if item]
+                        elif parsed:
+                            selected_wells = [str(parsed)]
+                    except (json.JSONDecodeError, TypeError, ValueError):
+                        if isinstance(raw, str) and raw.strip().startswith('[') and raw.strip().endswith(']'):
+                            try:
+                                selected_wells = [s.strip() for s in raw.strip('[]').split(',') if s.strip()]
+                            except Exception:
+                                selected_wells = [raw]
+                        else:
+                            selected_wells = [raw]
+                else:
+                    selected_wells = [str(v) for v in post_wells if v]
+            elif request.POST.get('selected_wells'):
+                raw = request.POST.get('selected_wells')
+                try:
+                    parsed = json.loads(raw)
+                    if isinstance(parsed, list):
+                        selected_wells = [str(item) for item in parsed if item]
+                except (json.JSONDecodeError, TypeError, ValueError):
+                    if isinstance(raw, str) and raw.strip():
+                        selected_wells = [raw.strip()]
+
+            if not selected_wells and analysis.selected_wells:
+                selected_wells = analysis.selected_wells
+
+            if not selected_wells:
+                raise ValueError('No wells selected. Please select one or more wells on the Well Trends page before running the analysis.')
+
             # Store selected wells on the analysis session for later use
             analysis.selected_wells = selected_wells
             analysis.save(update_fields=['selected_wells'])
@@ -215,7 +284,8 @@ def run_analysis(request, analysis_id):
                     tubing_diameter=pvt_model.tubing_diameter
                 )
             except PVTProperties.DoesNotExist:
-                pass
+                # Notify user that PVT properties are not configured - diagnostics will be skipped
+                messages.warning(request, 'PVT properties not configured. Liquid-loading diagnostics and gas recommendations will be skipped. Configure PVT properties to enable these diagnostics.')
 
             # Gas constraint for knapsack optimization
             gas_constraint_mmscf = getattr(weights, 'gas_constraint_mmscf', None)
@@ -234,7 +304,7 @@ def run_analysis(request, analysis_id):
                 raise ValueError('No wells found in the data. Please check that the "Well" column is correctly mapped.')
 
             for well_id in wells:
-                well_rows = [r for r in rows if r.get('Well') == well_id]
+                well_rows = [r for r in rows if _normalize_well_id(r.get('Well')) == well_id]
                 well_rows.sort(key=lambda r: _parse_date(r.get('Date', '')) if r.get('Date') else datetime.min)
 
                 # Skip wells with insufficient valid rows before analysis
@@ -342,14 +412,17 @@ def run_analysis(request, analysis_id):
                         current_oil = None
                     if current_oil is None:
                         current_oil = well_rows[-1].get('Net Oil (bopd)')
-                    if current_oil and weights.economic_limit_oil_bopd:
+                    if current_oil is not None and weights.economic_limit_oil_bopd is not None and weights.economic_limit_oil_bopd > 0 and current_oil > weights.economic_limit_oil_bopd:
                         days_to_limit = (current_oil - weights.economic_limit_oil_bopd) / abs(oil_slope)
                         trends['days_to_economic_limit'] = max(0, int(days_to_limit))
                         projected_6mo = current_oil + oil_slope * 180
                         trends['projected_oil_rate_6mo'] = max(0, round(projected_6mo, 2))
 
-                # Determine completion feasibility (simplified)
-                trends['completion_feasibility'] = 'feasible'  # Default to feasible unless deep check done
+                # Determine completion feasibility using uploaded completion data if available
+                trends['completion_feasibility'] = 'unknown'
+                completion_record = completion_records.get(_normalize_well_id(well_id))
+                if completion_record:
+                    trends['completion_feasibility'] = completion_record.feasibility_flag or 'unknown'
 
                 # Create well trend record
                 trend_obj = WellTrendAnalysis.objects.create(
@@ -409,7 +482,15 @@ def run_analysis(request, analysis_id):
 
             # Gas allocation knapsack optimization
             if gas_constraint_mmscf and gas_constraint_mmscf > 0:
-                _run_gas_knapsack(well_trends, gas_constraint_mmscf)
+                # Only run knapsack if at least one well has a recommended gas estimate
+                candidates_with_gas = [t for t in well_trends if getattr(t, 'recommended_gas_mmscf', None) and t.recommended_gas_mmscf > 0]
+                if not candidates_with_gas:
+                    messages.warning(request, 'Gas allocation skipped: no wells have recommended gas estimates (ensure PVT is configured and liquid-loading diagnostics ran). Results will be ranked by candidate score instead.')
+                    well_trends_sorted = sorted(well_trends, key=lambda x: x.candidate_score, reverse=True)
+                    for idx, trend in enumerate(well_trends_sorted, 1):
+                        trend.rank = idx
+                else:
+                    _run_gas_knapsack(well_trends, gas_constraint_mmscf)
             else:
                 # Default ranking by candidate score
                 well_trends_sorted = sorted(well_trends, key=lambda x: x.candidate_score, reverse=True)
@@ -467,33 +548,41 @@ def _run_gas_knapsack(well_trends, gas_constraint_mmscf):
     Simplified: assumes recommended_gas_mmscf is gas requirement.
     """
     try:
-        # Calculate efficiency for each well
+        # Prepare candidate list with calculated efficiency
         candidates = []
         for trend in well_trends:
             if trend.recommended_gas_mmscf and trend.recommended_gas_mmscf > 0:
                 efficiency = trend.candidate_score / trend.recommended_gas_mmscf
                 candidates.append((trend, efficiency, trend.recommended_gas_mmscf))
-        
-        # Sort by efficiency descending
-        candidates.sort(key=lambda x: x[1], reverse=True)
-        
-        # Greedy selection within gas constraint
+            else:
+                trend.gas_utilization_efficiency = 0.0
+
+        # Sort by efficiency, then by score for tie-breaking
+        candidates.sort(key=lambda x: (x[1], x[0].candidate_score), reverse=True)
+
         remaining_gas = gas_constraint_mmscf
+        allocated_trends = []
         rank = 1
-        
+
         for trend, efficiency, gas_req in candidates:
             if gas_req <= remaining_gas:
                 trend.rank = rank
                 trend.gas_utilization_efficiency = min(efficiency * 100, 100)
-                rank += 1
                 remaining_gas -= gas_req
-        
-        # Assign remaining wells with no gas allocation
-        unranked = [t for t in well_trends if not t.rank]
-        for trend in unranked:
+                allocated_trends.append(trend)
+                rank += 1
+            else:
+                # Do not allocate if candidate exceeds remaining capacity
+                trend.gas_utilization_efficiency = 0.0
+
+        # Assign ranks for unallocated wells by candidate score
+        unallocated = [t for t in well_trends if t not in allocated_trends]
+        unallocated.sort(key=lambda t: t.candidate_score, reverse=True)
+        for trend in unallocated:
             trend.rank = rank
+            trend.gas_utilization_efficiency = trend.gas_utilization_efficiency or 0.0
             rank += 1
-            
+
     except Exception:
         # Fallback to simple ranking
         well_trends_sorted = sorted(well_trends, key=lambda x: x.candidate_score, reverse=True)
@@ -525,11 +614,49 @@ def configure_pvt(request, analysis_id):
     return render(request, 'analysis/configure_pvt.html', context)
 
 
+def _persist_completion_record(analysis, well_id, mandrel_depths, packer_depth, tubing_od, tubing_id, available_compression, result):
+    """Save completion data and reflect feasibility on the related trend record."""
+    completion, _ = CompletionData.objects.update_or_create(
+        analysis=analysis,
+        well_id=well_id,
+        defaults={
+            'mandrel_depths': mandrel_depths,
+            'packer_depth': packer_depth,
+            'tubing_od': tubing_od,
+            'tubing_id': tubing_id,
+            'injection_pressure_required': result.get('required_pressure_at_deepest'),
+            'feasibility_flag': 'feasible' if result.get('overall_feasible') else 'pressure_limited',
+        }
+    )
+
+    well_trend = WellTrendAnalysis.objects.filter(analysis=analysis, well_id=well_id).first()
+    if well_trend:
+        if result.get('overall_feasible'):
+            well_trend.completion_feasibility = 'feasible'
+        else:
+            deficits = [item.get('deficit_psi', 0) for item in (result.get('mandrel_analysis') or []) if isinstance(item, dict)]
+            deficit = max(deficits, default=0)
+            well_trend.completion_feasibility = 'pressure_limited' if deficit < 200 else 'requires_deepening'
+        well_trend.save(update_fields=['completion_feasibility'])
+
+    return completion
+
+
 @login_required(login_url='accounts:login')
 @require_http_methods(["GET", "POST"])
 def upload_completion_data(request, analysis_id):
     """Upload completion data for feasibility check - Step 4b"""
     analysis = get_object_or_404(AnalysisSession, id=analysis_id, user=request.user)
+    existing_completions = CompletionData.objects.filter(analysis=analysis).order_by('well_id')
+    wells = []
+    try:
+        col_mapping = ColumnMapping.objects.get(upload=analysis.upload)
+        rows = _load_data(analysis.upload, col_mapping.mapping)
+        wells = _unique_wells(rows)
+    except ColumnMapping.DoesNotExist:
+        wells = []
+    except Exception:
+        wells = []
     
     if request.method == 'POST':
         # Priority: uploaded file -> raw CSV body -> JSON body -> form submission
@@ -570,28 +697,16 @@ def upload_completion_data(request, analysis_id):
                         available_compression_pressure_psi=available_compression
                     )
 
-                    CompletionData.objects.update_or_create(
+                    _persist_completion_record(
                         analysis=analysis,
                         well_id=well_id,
-                        defaults={
-                            'mandrel_depths': mandrel_depths,
-                            'packer_depth': packer_depth,
-                            'tubing_od': tubing_od,
-                            'tubing_id': tubing_id,
-                            'injection_pressure_required': result.get('required_pressure_at_deepest'),
-                            'feasibility_flag': 'feasible' if result.get('overall_feasible') else 'pressure_limited',
-                        }
+                        mandrel_depths=mandrel_depths,
+                        packer_depth=packer_depth,
+                        tubing_od=tubing_od,
+                        tubing_id=tubing_id,
+                        available_compression=available_compression,
+                        result=result,
                     )
-
-                    # Update well trend if present
-                    well_trend = WellTrendAnalysis.objects.filter(analysis=analysis, well_id=well_id).first()
-                    if well_trend:
-                        if result.get('overall_feasible'):
-                            well_trend.completion_feasibility = 'feasible'
-                        else:
-                            deficit = result.get('mandrel_analysis', [{}])[0].get('deficit_psi', 0)
-                            well_trend.completion_feasibility = 'pressure_limited' if deficit < 200 else 'requires_deepening'
-                        well_trend.save()
 
                     processed += 1
                 except Exception as e:
@@ -643,17 +758,15 @@ def upload_completion_data(request, analysis_id):
                         available_compression_pressure_psi=available_compression
                     )
 
-                    CompletionData.objects.update_or_create(
+                    _persist_completion_record(
                         analysis=analysis,
                         well_id=well_id,
-                        defaults={
-                            'mandrel_depths': mandrel_depths,
-                            'packer_depth': packer_depth,
-                            'tubing_od': tubing_od,
-                            'tubing_id': tubing_id,
-                            'injection_pressure_required': result.get('required_pressure_at_deepest'),
-                            'feasibility_flag': 'feasible' if result.get('overall_feasible') else 'pressure_limited',
-                        }
+                        mandrel_depths=mandrel_depths,
+                        packer_depth=packer_depth,
+                        tubing_od=tubing_od,
+                        tubing_id=tubing_id,
+                        available_compression=available_compression,
+                        result=result,
                     )
                     processed += 1
                 except Exception as e:
@@ -691,17 +804,15 @@ def upload_completion_data(request, analysis_id):
                         available_compression_pressure_psi=available_compression
                     )
 
-                    CompletionData.objects.update_or_create(
+                    _persist_completion_record(
                         analysis=analysis,
                         well_id=well_id,
-                        defaults={
-                            'mandrel_depths': mandrel_depths,
-                            'packer_depth': packer_depth,
-                            'tubing_od': tubing_od,
-                            'tubing_id': tubing_id,
-                            'injection_pressure_required': result.get('required_pressure_at_deepest'),
-                            'feasibility_flag': 'feasible' if result.get('overall_feasible') else 'pressure_limited',
-                        }
+                        mandrel_depths=mandrel_depths,
+                        packer_depth=packer_depth,
+                        tubing_od=tubing_od,
+                        tubing_id=tubing_id,
+                        available_compression=available_compression,
+                        result=result,
                     )
                     processed += 1
                 except Exception as e:
@@ -727,29 +838,16 @@ def upload_completion_data(request, analysis_id):
                 available_compression_pressure_psi=available_compression
             )
 
-            # Save completion data
-            completion, created = CompletionData.objects.update_or_create(
+            _persist_completion_record(
                 analysis=analysis,
                 well_id=well_id,
-                defaults={
-                    'mandrel_depths': mandrel_depths,
-                    'packer_depth': packer_depth,
-                    'tubing_od': tubing_od,
-                    'tubing_id': tubing_id,
-                    'injection_pressure_required': result.get('required_pressure_at_deepest'),
-                    'feasibility_flag': 'feasible' if result.get('overall_feasible') else 'pressure_limited',
-                }
+                mandrel_depths=mandrel_depths,
+                packer_depth=packer_depth,
+                tubing_od=tubing_od,
+                tubing_id=tubing_id,
+                available_compression=available_compression,
+                result=result,
             )
-
-            # Update well trend record if exists
-            well_trend = WellTrendAnalysis.objects.filter(analysis=analysis, well_id=well_id).first()
-            if well_trend:
-                if result.get('overall_feasible'):
-                    well_trend.completion_feasibility = 'feasible'
-                else:
-                    deficit = result.get('mandrel_analysis', [{}])[0].get('deficit_psi', 0)
-                    well_trend.completion_feasibility = 'pressure_limited' if deficit < 200 else 'requires_deepening'
-                well_trend.save()
 
             messages.success(request, f'Completion data saved for {well_id}. {result.get("recommendation", "")}')
             return redirect('analysis:well_trends', analysis_id=analysis.id)
@@ -759,6 +857,8 @@ def upload_completion_data(request, analysis_id):
     context = {
         'form': form,
         'analysis': analysis,
+        'existing_completions': existing_completions,
+        'wells': wells,
     }
     return render(request, 'analysis/upload_completion.html', context)
 
@@ -774,32 +874,56 @@ def run_sensitivity(request, analysis_id):
         weights, _ = AnalysisWeights.objects.get_or_create(analysis=analysis)
         rows = _load_data(analysis.upload, col_mapping.mapping)
         
-        # Group rows by well
+        # Group rows by normalized well id, but keep original display names
         well_data = {}
+        well_display = {}
         for r in rows:
-            well = r.get('Well')
+            raw_well = r.get('Well')
+            well = _normalize_well_id(raw_well)
             if well:
                 if well not in well_data:
                     well_data[well] = []
+                    well_display[well] = raw_well
                 well_data[well].append(r)
+
+        # Honor selected wells if the analysis was scoped (normalize IDs for comparison)
+        if analysis.selected_wells:
+            normalized_selected = set(_normalize_well_id(w) for w in (analysis.selected_wells or []))
+            well_data = {well: rows for well, rows in well_data.items() if well in normalized_selected}
         
         if len(well_data) < 2:
             return JsonResponse({'error': 'Need at least 2 wells for sensitivity analysis'}, status=400)
         
-        # Run Monte Carlo simulation
+        # Run Monte Carlo simulation with actual analysis settings
         simulator = MonteCarloSensitivity(iterations=1000)
-        results = simulator.run_simulation(well_data, weights)
+        results = simulator.run_simulation(
+            well_data,
+            weights,
+            base_choke_size=weights.base_choke_size or None,
+            outlier_method=getattr(weights, 'outlier_method', 'iqr') or 'iqr',
+            outlier_threshold=getattr(weights, 'outlier_threshold', 1.5) or 1.5,
+        )
         
         # Classify confidence for each well
         for well_id, data in results.items():
             data['confidence'] = MonteCarloSensitivity.classify_confidence(data['rank_variance'])
-        
-        return JsonResponse({'status': 'success', 'results': results})
+
+        # Map normalized keys back to original display names when possible
+        remapped = { (well_display.get(k) or k): v for k, v in results.items() }
+
+        return JsonResponse({'status': 'success', 'results': remapped})
     
     except Exception as e:
         import logging
         logger = logging.getLogger(__name__)
         logger.error(f"Sensitivity analysis failed for {analysis.id}: {e}", exc_info=True)
+        # Print exception to stdout for test debugging
+        try:
+            import traceback, sys
+            print('SENSITIVITY ERROR:', e, file=sys.stderr)
+            traceback.print_exc()
+        except Exception:
+            pass
         return JsonResponse({'error': str(e)}, status=400)
 
 
@@ -817,8 +941,8 @@ def compare_analyses(request):
     analysis_a = get_object_or_404(AnalysisSession, id=analysis_id_a, user=request.user)
     analysis_b = get_object_or_404(AnalysisSession, id=analysis_id_b, user=request.user)
     
-    trends_a = {t.well_id: t for t in WellTrendAnalysis.objects.filter(analysis=analysis_a)}
-    trends_b = {t.well_id: t for t in WellTrendAnalysis.objects.filter(analysis=analysis_b)}
+    trends_a = {_normalize_well_id(t.well_id): t for t in WellTrendAnalysis.objects.filter(analysis=analysis_a)}
+    trends_b = {_normalize_well_id(t.well_id): t for t in WellTrendAnalysis.objects.filter(analysis=analysis_b)}
     
     # Build delta table
     all_wells = set(list(trends_a.keys()) + list(trends_b.keys()))
@@ -826,7 +950,7 @@ def compare_analyses(request):
     for well_id in sorted(all_wells):
         t_a = trends_a.get(well_id)
         t_b = trends_b.get(well_id)
-        
+
         delta = {
             'well_id': well_id,
             'rank_a': t_a.rank if t_a else None,
@@ -834,20 +958,33 @@ def compare_analyses(request):
             'score_a': t_a.candidate_score if t_a else None,
             'score_b': t_b.candidate_score if t_b else None,
         }
-        
-        if delta['rank_a'] and delta['rank_b']:
+
+        if delta['rank_a'] is not None and delta['rank_b'] is not None:
             delta['rank_change'] = delta['rank_a'] - delta['rank_b']
             delta['improved'] = delta['rank_change'] > 0
             delta['deteriorated'] = delta['rank_change'] < 0
+            delta['new_well'] = False
+            delta['removed_well'] = False
         else:
             delta['rank_change'] = None
             delta['improved'] = False
-            delta['deteriorated'] = not (t_a or t_b)
-        
+            delta['deteriorated'] = False
+            delta['new_well'] = delta['rank_a'] is None and delta['rank_b'] is not None
+            delta['removed_well'] = delta['rank_a'] is not None and delta['rank_b'] is None
+
         deltas.append(delta)
-    
-    deltas.sort(key=lambda x: abs(x['rank_change']) if x['rank_change'] else 0, reverse=True)
-    
+
+    def _compare_sort_key(item):
+        if item.get('rank_change') is not None:
+            return (2, abs(item['rank_change']), item['rank_b'] or 0)
+        if item.get('new_well'):
+            return (1, 0, item['rank_b'] or 0)
+        if item.get('removed_well'):
+            return (0, 0, item['rank_a'] or 0)
+        return (-1, 0, 0)
+
+    deltas.sort(key=_compare_sort_key, reverse=True)
+
     context = {
         'analysis_a': analysis_a,
         'analysis_b': analysis_b,
@@ -856,7 +993,8 @@ def compare_analyses(request):
             'improved': sum(1 for d in deltas if d.get('improved')),
             'deteriorated': sum(1 for d in deltas if d.get('deteriorated')),
             'unchanged': sum(1 for d in deltas if d.get('rank_change') == 0),
-            'new_wells': sum(1 for d in deltas if d['rank_b'] and not d['rank_a']),
+            'new_wells': sum(1 for d in deltas if d.get('new_well')),
+            'removed_wells': sum(1 for d in deltas if d.get('removed_well')),
         }
     }
     
@@ -879,6 +1017,15 @@ def delete_analysis(request, analysis_id):
     analysis.delete()
     messages.success(request, 'Analysis deleted successfully.')
     return redirect('analysis:my_analyses')
+
+
+def _normalize_well_id(well_id):
+    if well_id is None:
+        return None
+    if isinstance(well_id, str):
+        normalized = re.sub(r'[^a-z0-9]+', '', well_id.lower())
+        return normalized.strip()
+    return re.sub(r'[^a-z0-9]+', '', str(well_id).lower()).strip()
 
 
 def _load_data(upload, mapping):
@@ -911,17 +1058,21 @@ def _load_data(upload, mapping):
             row['Date'] = None
 
     # Convert numeric columns
-    numeric_cols = ['BS&W (%)', 'Net Oil (bopd)', 'Form.GLR (scf/bbl)',
-                   'Tubing Pressure (psi)', 'Flow Line Pressure (psi)']
+    numeric_cols = [
+        'BS&W (%)',
+        'Net Oil (bopd)',
+        'Form.GLR (scf/bbl)',
+        'Tubing Pressure (psi)',
+        'Flow Line Pressure (psi)',
+        'Reservoir Pressure (psi)',
+        'Flowing BHP (psi)',
+    ]
     for col in numeric_cols:
         for row in mapped_rows:
             if col in row:
                 val = row[col]
                 if val is not None and val != '':
-                    try:
-                        row[col] = float(val)
-                    except (ValueError, TypeError):
-                        row[col] = None
+                    row[col] = _coerce_numeric(val)
                 else:
                     row[col] = None
 
@@ -933,13 +1084,39 @@ def _safe_series_to_list(series):
     return [x if x is not None else None for x in series]
 
 
+def _normalize_chart_series(values, expected_length=None):
+    """Convert chart values to JSON-safe numbers and align them to the expected length."""
+    if values is None:
+        return []
+
+    normalized = []
+    for value in values:
+        if value is None or value == '':
+            normalized.append(None)
+            continue
+        try:
+            normalized.append(float(value))
+        except (TypeError, ValueError):
+            normalized.append(None)
+
+    if expected_length is None:
+        return normalized
+
+    if len(normalized) < expected_length:
+        normalized.extend([None] * (expected_length - len(normalized)))
+    elif len(normalized) > expected_length:
+        normalized = normalized[:expected_length]
+
+    return normalized
+
+
 def _unique_wells(rows):
     """Get unique well names from data, preserving order."""
     seen = set()
     wells = []
     for r in rows:
-        well = r.get('Well')
-        if well is not None and well not in seen:
+        well = _normalize_well_id(r.get('Well'))
+        if well is not None and well not in seen and well != '':
             seen.add(well)
             wells.append(well)
     return wells

@@ -82,8 +82,9 @@
                 {% endif %}
                 
                 <div class="mb-3">
-                    <div class="form-group">
-                        <label for="file" class="form-label"><strong>Select File to Upload:</strong></label>
+                    <div id="dropZone" class="border border-dashed rounded p-4 text-center">
+                        <p class="mb-2"><strong>Drag and drop your file here</strong></p>
+                        <p class="text-muted">or click the button below to select an Excel or CSV file.</p>
                         <input type="file" class="form-control mb-2" id="file" name="file" accept=".xlsx, .csv" required>
                         <button type="submit" class="btn btn-primary w-100 w-md-auto" id="uploadBtn">
                             <i class="bi bi-cloud-arrow-up"></i> Upload
@@ -107,10 +108,47 @@
 </div>
 
 <script>
-document.getElementById('uploadForm')?.addEventListener('submit', function() {
-    var btn = document.getElementById('uploadBtn');
-    btn.disabled = true;
-    btn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Uploading...';
+const dropZone = document.getElementById('dropZone');
+const fileInput = document.getElementById('file');
+const uploadBtn = document.getElementById('uploadBtn');
+const uploadForm = document.getElementById('uploadForm');
+
+function setDropZoneActive(active) {
+    if (!dropZone) return;
+    dropZone.classList.toggle('border-primary', active);
+    dropZone.classList.toggle('bg-light', active);
+}
+
+if (dropZone) {
+    ['dragenter', 'dragover'].forEach(eventName => {
+        dropZone.addEventListener(eventName, function(e) {
+            e.preventDefault();
+            e.stopPropagation();
+            setDropZoneActive(true);
+        });
+    });
+
+    ['dragleave', 'drop'].forEach(eventName => {
+        dropZone.addEventListener(eventName, function(e) {
+            e.preventDefault();
+            e.stopPropagation();
+            setDropZoneActive(false);
+        });
+    });
+
+    dropZone.addEventListener('drop', function(e) {
+        const files = e.dataTransfer.files;
+        if (files.length) {
+            fileInput.files = files;
+        }
+    });
+}
+
+uploadForm?.addEventListener('submit', function() {
+    if (uploadBtn) {
+        uploadBtn.disabled = true;
+        uploadBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Uploading...';
+    }
 });
 </script>
 {% endblock %}

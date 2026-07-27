@@ -52,6 +52,9 @@
                                 {% else %}
                                 <span class="badge bg-info"><i class="bi bi-clock"></i> {{ analysis.status }}</span>
                                 {% endif %}
+                                {% if analysis.status == 'failed' and analysis.error_message %}
+                                <div class="text-muted small mt-1">Error: {{ analysis.error_message|truncatechars:60 }}</div>
+                                {% endif %}
                             </td>
                             <td>{{ analysis.created_at|date:"Y-m-d H:i" }}</td>
                             <td>{{ analysis.completed_at|date:"Y-m-d H:i"|default:"--" }}</td>

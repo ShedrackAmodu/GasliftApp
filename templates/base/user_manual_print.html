@@ -468,16 +468,30 @@
         <div class="section-title"><span class="section-number">10</span> Advanced Features</div>
         <div class="section-body">
             <h5>Sensitivity Analysis (Monte Carlo)</h5>
-            <p>The sensitivity analysis uses Monte Carlo simulation to assess the robustness of well rankings under uncertainty. It runs <strong>1,000 iterations</strong> with random perturbations to input parameters and measures rank stability. Wells are classified as High, Medium, or Low confidence.</p>
+            <p>The sensitivity analysis uses Monte Carlo simulation to assess the robustness of well rankings under uncertainty. It runs <strong>1,000 iterations</strong> with random perturbations to input parameters and measures rank stability.</p>
+            <ul>
+                <li><strong>Rank Variance</strong> — Lower variance means more stable ranking</li>
+                <li><strong>Confidence Classification</strong> — Wells are classified as High, Medium, or Low confidence</li>
+                <li>Requires at least <strong>2 wells</strong> for meaningful results</li>
+            </ul>
 
             <h5>Liquid Loading Diagnostics</h5>
-            <p>When PVT properties are configured, the system calculates critical gas velocity, actual gas velocity, and sets a liquid loading flag when actual velocity falls below critical.</p>
+            <p>When PVT properties are configured, the system calculates:</p>
+            <ul>
+                <li><strong>Critical Gas Velocity</strong> — Minimum velocity needed to lift liquids (ft/s)</li>
+                <li><strong>Actual Gas Velocity</strong> — Current estimated gas velocity</li>
+                <li><strong>Liquid Loading Flag</strong> — Set when actual velocity falls below critical</li>
+            </ul>
 
             <h5>Gas Allocation Optimization (Knapsack)</h5>
-            <p>When a gas constraint is specified, the system applies a simple greedy heuristic to allocate available lift gas across candidates as a prototype-level allocation aid.</p>
+            <p>When a gas constraint is specified, the system applies a simple greedy heuristic to allocate available lift gas across candidates. Wells are ranked by efficiency (candidate score per unit gas) as a prototype-level allocation aid.</p>
 
             <h5>Economic Limit Forecasting</h5>
-            <p>Using the economic oil rate limit and Sen's slope, the system estimates days to economic limit and projected oil rate (6 months).</p>
+            <p>Using the economic oil rate limit and Sen's slope, the system estimates:</p>
+            <ul>
+                <li><strong>Days to Economic Limit</strong> — How long before the well becomes uneconomic</li>
+                <li><strong>Projected Oil Rate (6 months)</strong> — Forecasted rate based on current decline</li>
+            </ul>
 
             <h5>Completion Feasibility</h5>
             <p>With completion data uploaded, the system performs a basic feasibility screening to assess whether available compression pressure is sufficient for gas lift at the deepest mandrel using simplified pressure-loss assumptions.</p>

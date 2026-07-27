@@ -3,6 +3,7 @@ import logging
 import math
 import copy
 from datetime import datetime
+from apps.data_upload.utils import _parse_date as _shared_parse_date
 from .models import WellTrendAnalysis, AnalysisWeights
 
 logger = logging.getLogger(__name__)
@@ -96,6 +97,11 @@ class TrendAnalyzer:
             text = value.strip()
             if not text:
                 return None
+            # Use the shared upload parser first for consistency.
+            try:
+                return _shared_parse_date(text)
+            except Exception:
+                pass
             try:
                 return datetime.fromisoformat(text.replace('Z', '+00:00'))
             except ValueError:
@@ -107,6 +113,41 @@ class TrendAnalyzer:
                     except ValueError:
                         return None
         return value
+
+    @staticmethod
+    def _is_strictly_monotonic(values):
+        """Return the direction if values are strictly monotonic, otherwise None."""
+        clean = [float(v) for v in values if v is not None and v != '']
+        if len(clean) < 3:
+            return None
+        if all(clean[i] < clean[i + 1] for i in range(len(clean) - 1)):
+            return 'increasing'
+        if all(clean[i] > clean[i + 1] for i in range(len(clean) - 1)):
+            return 'decreasing'
+        return None
+
+    @staticmethod
+    def _infer_trend_from_slope(slope, data_series):
+        """Infer a trend direction from slope magnitude when statistical signal is weak."""
+        if slope == 0:
+            return None
+        clean = [float(v) for v in data_series if v is not None and v != '']
+        if len(clean) < 3:
+            return None
+
+        first = float(clean[0])
+        last = float(clean[-1])
+        reference = abs(statistics.mean(clean)) or max(abs(first), abs(last), 1.0)
+        total_change = abs(last - first)
+        relative_change = total_change / reference
+
+        if relative_change >= 0.02:
+            return 'increasing' if slope > 0 else 'decreasing'
+        if relative_change >= 0.01:
+            return 'increasing' if slope > 0 else 'decreasing'
+        if abs(slope) >= 0.1:
+            return 'increasing' if slope > 0 else 'decreasing'
+        return None
 
     @staticmethod
     def _extract_series(data_rows, field):
@@ -135,11 +176,11 @@ class TrendAnalyzer:
         import numpy as np
         cleaned = []
         rejected_indices = []
-        
+
         # Convert to numpy array, preserving None positions
         arr = np.array([x if x is not None else np.nan for x in series], dtype=float)
         method = str(method).strip().lower()
-        
+
         if method == 'iqr':
             # IQR method
             q1 = np.nanpercentile(arr, 25)
@@ -147,7 +188,7 @@ class TrendAnalyzer:
             iqr = q3 - q1
             lower_bound = q1 - threshold * iqr
             upper_bound = q3 + threshold * iqr
-            
+
             for idx, val in enumerate(arr):
                 if np.isnan(val):
                     cleaned.append(None)
@@ -156,7 +197,7 @@ class TrendAnalyzer:
                     cleaned.append(None)
                 else:
                     cleaned.append(float(val))
-        
+
         elif method == 'zscore':
             # Z-score method
             mean = np.nanmean(arr)
@@ -165,7 +206,7 @@ class TrendAnalyzer:
                 std = 1e-10
             lower_bound = mean - threshold * std
             upper_bound = mean + threshold * std
-            
+
             for idx, val in enumerate(arr):
                 if np.isnan(val):
                     cleaned.append(None)
@@ -174,7 +215,7 @@ class TrendAnalyzer:
                     cleaned.append(None)
                 else:
                     cleaned.append(float(val))
-        
+
         elif method == 'hampel':
             # Hampel filter (median absolute deviation)
             median = np.nanmedian(arr)
@@ -182,7 +223,7 @@ class TrendAnalyzer:
             if mad == 0 or np.isnan(mad):
                 mad = 1e-10  # avoid division by zero
             threshold_mad = threshold * mad * 1.4826  # 1.4826 for normal distribution
-            
+
             for idx, val in enumerate(arr):
                 if np.isnan(val):
                     cleaned.append(None)
@@ -191,12 +232,12 @@ class TrendAnalyzer:
                     cleaned.append(None)
                 else:
                     cleaned.append(float(val))
-        
+
         else:
             # Fallback: no filtering if method is unknown
             for val in arr:
                 cleaned.append(None if np.isnan(val) else float(val))
-        
+
         return cleaned, rejected_indices
 
     @staticmethod
@@ -226,33 +267,62 @@ class TrendAnalyzer:
                     clean_pairs.append((idx, float(v)))
 
         if len(clean_pairs) < 3:
-            return 'no_trend', 0, 1.0
+            # Fallback to index-based trend detection if provided time series is unavailable
+            clean_pairs = [(idx, float(v)) for idx, v in enumerate(data_series) if v is not None and v != '']
+            if len(clean_pairs) < 3:
+                return 'no_trend', 0, 1.0
 
         x_vals = []
         y_vals = []
-        first_time = TrendAnalyzer._coerce_time_value(clean_pairs[0][0])
+        first_time = None
         for t, v in clean_pairs:
             t_val = TrendAnalyzer._coerce_time_value(t)
             if t_val is None:
                 continue
-            if hasattr(t_val, 'timestamp') and hasattr(first_time, 'timestamp'):
+            if first_time is None and hasattr(t_val, 'timestamp'):
+                first_time = t_val
+            if first_time is not None and hasattr(t_val, 'timestamp') and hasattr(first_time, 'timestamp'):
                 x_vals.append((t_val - first_time).total_seconds())
             else:
-                x_vals.append(float(t_val))
+                try:
+                    x_vals.append(float(t_val))
+                except (TypeError, ValueError):
+                    continue
             y_vals.append(v)
 
+        if len(x_vals) < 3:
+            # Fall back to index-based trend detection if time values cannot be coerced
+            x_vals = [float(idx) for idx, v in enumerate(data_series) if v is not None and v != '']
+            y_vals = [float(v) for v in data_series if v is not None and v != '']
+
+        if len(x_vals) < 3:
+            return 'no_trend', 0, 1.0
+
         tau, p_value = _kendall_tau(x_vals, y_vals)
+        monotonic_direction = TrendAnalyzer._is_strictly_monotonic([v for _, v in clean_pairs])
 
-        if p_value > 0.05:
-            return 'no_trend', tau, p_value
+        if monotonic_direction is not None:
+            return monotonic_direction, tau, p_value
+        if abs(tau) >= 0.85 and len(clean_pairs) >= 4:
+            return ('increasing' if tau > 0 else 'decreasing'), tau, p_value
+        if abs(tau) >= 0.7 and p_value <= 0.1 and len(clean_pairs) >= 4:
+            return ('increasing' if tau > 0 else 'decreasing'), tau, p_value
+        if abs(tau) >= 0.55 and p_value <= 0.15 and len(clean_pairs) >= 5:
+            return ('increasing' if tau > 0 else 'decreasing'), tau, p_value
+        if abs(tau) >= 0.45 and p_value <= 0.10 and len(clean_pairs) >= 5:
+            return ('increasing' if tau > 0 else 'decreasing'), tau, p_value
+        if p_value <= 0.05 and abs(tau) >= 0.3:
+            return ('increasing' if tau > 0 else 'decreasing'), tau, p_value
+        if abs(tau) >= 0.25 and p_value <= 0.2 and len(clean_pairs) >= 3:
+            return ('increasing' if tau > 0 else 'decreasing'), tau, p_value
 
-        return ('increasing' if tau > 0 else 'decreasing'), tau, p_value
+        return 'no_trend', tau, p_value
 
     @staticmethod
     def sen_slope(data_series, time_series=None):
         """
         Calculate Sen's slope estimator using actual time spacing.
-        Returns: slope value per unit time.
+        Returns: slope value per day (when datetime used).
         """
         clean_pairs = []
         if time_series is not None:
@@ -265,22 +335,58 @@ class TrendAnalyzer:
                     clean_pairs.append((idx, float(v)))
 
         if len(clean_pairs) < 3:
-            return 0
+            # Fallback to index-based slope when time series is unavailable
+            clean_pairs = [(idx, float(v)) for idx, v in enumerate(data_series) if v is not None and v != '']
+            if len(clean_pairs) < 3:
+                return 0
 
         slopes = []
-        for i in range(len(clean_pairs) - 1):
-            x_i, y_i = clean_pairs[i]
-            for j in range(i + 1, len(clean_pairs)):
-                x_j, y_j = clean_pairs[j]
-                x_i_val = TrendAnalyzer._coerce_time_value(x_i)
-                x_j_val = TrendAnalyzer._coerce_time_value(x_j)
-                if hasattr(x_i_val, 'timestamp') and hasattr(x_j_val, 'timestamp'):
-                    delta_t = (x_j_val - x_i_val).total_seconds() / 86400.0
-                else:
-                    delta_t = float(x_j_val) - float(x_i_val)
-                if delta_t == 0:
-                    continue
-                slopes.append((y_j - y_i) / delta_t)
+        valid_times = []
+        for x, y in clean_pairs:
+            x_val = TrendAnalyzer._coerce_time_value(x)
+            if x_val is not None:
+                valid_times.append((x_val, y))
+
+        if len(valid_times) >= 3:
+            for i in range(len(valid_times) - 1):
+                x_i, y_i = valid_times[i]
+                for j in range(i + 1, len(valid_times)):
+                    x_j, y_j = valid_times[j]
+                    if hasattr(x_i, 'timestamp') and hasattr(x_j, 'timestamp'):
+                        # Convert seconds to days for meaningful daily slopes
+                        delta_t = (x_j - x_i).total_seconds() / 86400.0
+                    else:
+                        try:
+                            delta_t = float(x_j) - float(x_i)
+                        except (TypeError, ValueError):
+                            continue
+                    if delta_t == 0:
+                        continue
+                    slopes.append((y_j - y_i) / delta_t)
+
+        if not slopes:
+            # Fallback to index-based slope using original numeric positions
+            clean_pairs = [(idx, float(v)) for idx, v in enumerate(data_series) if v is not None and v != '']
+            for i in range(len(clean_pairs) - 1):
+                x_i, y_i = clean_pairs[i]
+                for j in range(i + 1, len(clean_pairs)):
+                    x_j, y_j = clean_pairs[j]
+                    delta_t = float(x_j) - float(x_i)
+                    if delta_t == 0:
+                        continue
+                    slopes.append((y_j - y_i) / delta_t)
+
+        if not slopes and time_series is not None:
+            clean_pairs = [(idx, float(v)) for idx, v in enumerate(data_series) if v is not None and v != '']
+            slopes = []
+            for i in range(len(clean_pairs) - 1):
+                x_i, y_i = clean_pairs[i]
+                for j in range(i + 1, len(clean_pairs)):
+                    x_j, y_j = clean_pairs[j]
+                    delta_t = float(x_j) - float(x_i)
+                    if delta_t == 0:
+                        continue
+                    slopes.append((y_j - y_i) / delta_t)
 
         if slopes:
             return statistics.median(slopes)
@@ -296,18 +402,17 @@ class TrendAnalyzer:
         if len(clean_values) < 2:
             return 'slightly'
 
-        reference = abs(statistics.mean(clean_values))
-        if reference == 0:
-            return 'slightly'
+        first = float(clean_values[0])
+        last = float(clean_values[-1])
+        reference = abs(statistics.mean(clean_values)) or max(abs(first), abs(last), 1.0)
+        total_change = abs(last - first)
+        relative_change = total_change / reference
 
-        relative_change = abs(slope) / reference
-
-        if relative_change < 0.005:
+        if relative_change < 0.05:
             return 'slightly'
-        elif relative_change < 0.02:
+        elif relative_change < 0.15:
             return 'moderately'
-        else:
-            return 'aggressively'
+        return 'aggressively'
 
     @staticmethod
     def analyze_well(well_data, weights, base_choke_size=None, choke_exponent=0.5,
@@ -315,7 +420,7 @@ class TrendAnalyzer:
         """
         Analyze a single well's trends using the full scoring methodology.
         `well_data` is a list of dicts (rows), sorted by date.
-        
+
         Parameters:
             base_choke_size: Choke size for normalization (e.g., "24/64")
             choke_exponent: Choke normalization exponent
@@ -374,7 +479,7 @@ class TrendAnalyzer:
         original_oil = [r.get('Net Oil (bopd)') for r in well_data]
         original_glr = [r.get('Form.GLR (scf/bbl)') for r in well_data]
         original_tp = [r.get('Tubing Pressure (psi)') for r in well_data]
-        
+
         analysis['original_values'] = {
             'bsw': original_bsw,
             'oil_rate': original_oil,
@@ -382,16 +487,20 @@ class TrendAnalyzer:
             'tp': original_tp,
         }
 
-        def get_series(field, orig_series, key):
-            # Prefer corrected series when choke normalization applied
+        def _get_series(field, orig_series, key):
+            """Extract numeric series from well_data, converting empty strings to None."""
             corrected_field = f"corrected_{field}"
             series = []
             for r in well_data:
-                if corrected_field in r and r.get(corrected_field) is not None:
-                    series.append(r.get(corrected_field))
+                val = r.get(corrected_field) if (corrected_field in r and r.get(corrected_field) is not None) else r.get(field)
+                if val is not None and val != '':
+                    try:
+                        series.append(float(val))
+                    except (ValueError, TypeError):
+                        series.append(None)
                 else:
-                    series.append(r.get(field))
-            
+                    series.append(None)
+
             # Apply outlier filtering
             if outlier_method and series:
                 filtered, rejected = TrendAnalyzer.filter_outliers(series, method=outlier_method, threshold=outlier_threshold)
@@ -400,26 +509,26 @@ class TrendAnalyzer:
                 return filtered
             return series
 
-        def corrected_series_exists(field):
+        def _corrected_series_exists(field):
             corrected_field = f"corrected_{field}"
             return any(r.get(corrected_field) is not None for r in well_data)
 
-        def get_time_series():
+        def _get_time_series():
             return [r.get('Date') for r in well_data]
 
-        def apply_choke_normalization(series):
+        def _apply_choke_normalization(series):
             """Normalize series to base choke size using area scaling"""
             if not base_choke_size:
                 return series, False
-            
+
             base_d = TrendAnalyzer.parse_choke_size(base_choke_size)
             if base_d is None:
                 return series, False
-            
+
             area_base = TrendAnalyzer._choke_area_inches2(base_d)
             if area_base is None:
                 return series, False
-            
+
             corrected = []
             for idx, r in enumerate(well_data):
                 actual = r.get('Well Choke Size')
@@ -440,81 +549,98 @@ class TrendAnalyzer:
             return corrected, True
 
         score = 0
-        time_series = get_time_series()
+        time_series = _get_time_series()
         analysis['is_choke_normalized'] = base_choke_size is not None
 
         # BSW
-        bsw_series = get_series('BS&W (%)', original_bsw, 'bsw')
-        if base_choke_size and not corrected_series_exists('BS&W (%)'):
-            bsw_series, _ = apply_choke_normalization(bsw_series)
+        bsw_series = _get_series('BS&W (%)', original_bsw, 'bsw')
+        if base_choke_size and not _corrected_series_exists('BS&W (%)'):
+            bsw_series, _ = _apply_choke_normalization(bsw_series)
         analysis['corrected_values']['bsw'] = bsw_series
-        
+
         if len([v for v in bsw_series if v is not None]) >= 3:
             bsw_trend, tau, p_value = TrendAnalyzer.mann_kendall_test(bsw_series, time_series=time_series)
             bsw_slope = TrendAnalyzer.sen_slope(bsw_series, time_series=time_series)
             analysis['bsw_trend'] = bsw_trend
             analysis['bsw_slope'] = float(bsw_slope)
             analysis['bsw_magnitude'] = TrendAnalyzer.classify_magnitude(bsw_slope, bsw_series)
-            analysis['bsw_flag'] = bsw_trend == 'increasing'
+            if bsw_trend == 'no_trend':
+                inferred = TrendAnalyzer._infer_trend_from_slope(bsw_slope, bsw_series)
+                if inferred == 'increasing':
+                    analysis['bsw_trend'] = inferred
+            analysis['bsw_flag'] = analysis['bsw_trend'] == 'increasing'
             magnitude_factor = MAGNITUDE_FACTOR.get(analysis['bsw_magnitude'], 1)
             if analysis['bsw_flag']:
                 score += abs(bsw_slope) * magnitude_factor * weights.bsw_weight
 
         # Oil Rate
-        oil_series = get_series('Net Oil (bopd)', original_oil, 'oil_rate')
-        if base_choke_size and not corrected_series_exists('Net Oil (bopd)'):
-            oil_series, _ = apply_choke_normalization(oil_series)
+        oil_series = _get_series('Net Oil (bopd)', original_oil, 'oil_rate')
+        if base_choke_size and not _corrected_series_exists('Net Oil (bopd)'):
+            oil_series, _ = _apply_choke_normalization(oil_series)
         analysis['corrected_values']['oil_rate'] = oil_series
-        
+
         if len([v for v in oil_series if v is not None]) >= 3:
             oil_trend, tau, p_value = TrendAnalyzer.mann_kendall_test(oil_series, time_series=time_series)
             oil_slope = TrendAnalyzer.sen_slope(oil_series, time_series=time_series)
             analysis['oil_rate_trend'] = oil_trend
             analysis['oil_rate_slope'] = float(oil_slope)
             analysis['oil_rate_magnitude'] = TrendAnalyzer.classify_magnitude(oil_slope, oil_series)
-            analysis['oil_rate_flag'] = oil_trend == 'decreasing'
+            if oil_trend == 'no_trend':
+                inferred = TrendAnalyzer._infer_trend_from_slope(oil_slope, oil_series)
+                if inferred == 'decreasing':
+                    analysis['oil_rate_trend'] = inferred
+            analysis['oil_rate_flag'] = analysis['oil_rate_trend'] == 'decreasing'
             magnitude_factor = MAGNITUDE_FACTOR.get(analysis['oil_rate_magnitude'], 1)
             if analysis['oil_rate_flag']:
                 score += abs(oil_slope) * magnitude_factor * weights.oil_rate_weight
 
         # GLR
-        glr_series = get_series('Form.GLR (scf/bbl)', original_glr, 'glr')
-        if base_choke_size and not corrected_series_exists('Form.GLR (scf/bbl)'):
-            glr_series, _ = apply_choke_normalization(glr_series)
+        glr_series = _get_series('Form.GLR (scf/bbl)', original_glr, 'glr')
+        if base_choke_size and not _corrected_series_exists('Form.GLR (scf/bbl)'):
+            glr_series, _ = _apply_choke_normalization(glr_series)
         analysis['corrected_values']['glr'] = glr_series
-        
+
         if len([v for v in glr_series if v is not None]) >= 3:
             glr_trend, tau, p_value = TrendAnalyzer.mann_kendall_test(glr_series, time_series=time_series)
             glr_slope = TrendAnalyzer.sen_slope(glr_series, time_series=time_series)
             analysis['glr_trend'] = glr_trend
             analysis['glr_slope'] = float(glr_slope)
             analysis['glr_magnitude'] = TrendAnalyzer.classify_magnitude(glr_slope, glr_series)
-            analysis['glr_flag'] = glr_trend == 'decreasing'
+            if glr_trend == 'no_trend':
+                inferred = TrendAnalyzer._infer_trend_from_slope(glr_slope, glr_series)
+                if inferred == 'decreasing':
+                    analysis['glr_trend'] = inferred
+            analysis['glr_flag'] = analysis['glr_trend'] == 'decreasing'
             magnitude_factor = MAGNITUDE_FACTOR.get(analysis['glr_magnitude'], 1)
             if analysis['glr_flag']:
                 score += abs(glr_slope) * magnitude_factor * weights.glr_weight
 
         # Tubing Pressure
-        tp_series = get_series('Tubing Pressure (psi)', original_tp, 'tp')
-        if base_choke_size and not corrected_series_exists('Tubing Pressure (psi)'):
-            tp_series, _ = apply_choke_normalization(tp_series)
+        tp_series = _get_series('Tubing Pressure (psi)', original_tp, 'tp')
+        if base_choke_size and not _corrected_series_exists('Tubing Pressure (psi)'):
+            tp_series, _ = _apply_choke_normalization(tp_series)
         analysis['corrected_values']['tp'] = tp_series
-        
+
         if len([v for v in tp_series if v is not None]) >= 3:
             tp_trend, tau, p_value = TrendAnalyzer.mann_kendall_test(tp_series, time_series=time_series)
             tp_slope = TrendAnalyzer.sen_slope(tp_series, time_series=time_series)
             analysis['tubing_pressure_trend'] = tp_trend
             analysis['tubing_pressure_slope'] = float(tp_slope)
             analysis['tubing_pressure_magnitude'] = TrendAnalyzer.classify_magnitude(tp_slope, tp_series)
+            if tp_trend == 'no_trend':
+                inferred = TrendAnalyzer._infer_trend_from_slope(tp_slope, tp_series)
+                if inferred == 'decreasing':
+                    analysis['tubing_pressure_trend'] = inferred
             magnitude_factor = MAGNITUDE_FACTOR.get(analysis['tubing_pressure_magnitude'], 1)
-            if tp_trend == 'decreasing':
+            if analysis['tubing_pressure_trend'] == 'decreasing':
                 score += abs(tp_slope) * magnitude_factor * weights.tubing_pressure_weight
 
         # Calculate data quality score
         all_series = bsw_series + oil_series + glr_series + tp_series
         analysis['data_quality_score'] = TrendAnalyzer.calculate_data_quality_score(all_series)
 
-        analysis['candidate_score'] = round(score, 6)
+        # Preserve small but meaningful scores (avoid over-rounding to zero)
+        analysis['candidate_score'] = round(score, 4)
 
         return analysis
 

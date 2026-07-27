@@ -167,7 +167,17 @@ class WellTrendAnalysis(models.Model):
         ('pressure_limited', 'Insufficient Injection Pressure'),
         ('unknown', 'Unknown'),
     ], default='unknown')
-    
+
+    @property
+    def urgency_label(self):
+        if self.days_to_economic_limit is None:
+            return 'Unknown'
+        if self.days_to_economic_limit <= 90:
+            return 'High'
+        if self.days_to_economic_limit <= 180:
+            return 'Medium'
+        return 'Low'
+
     candidate_score = models.FloatField(default=0)
     rank = models.IntegerField(null=True, blank=True)
     summary_comment = models.TextField(blank=True)

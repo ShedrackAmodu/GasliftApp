@@ -50,17 +50,60 @@
         <div class="card-body">
             <p class="lead">Set the importance level for each parameter</p>
             
+            <div class="table-responsive mb-4">
+                <table class="table table-bordered">
+                    <thead class="table-light">
+                        <tr>
+                            <th>Parameter</th>
+                            <th>Default</th>
+                            <th>Description</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td><strong>BS&W (%)</strong></td>
+                            <td>100</td>
+                            <td>Weight for water cut increase trends</td>
+                        </tr>
+                        <tr>
+                            <td><strong>Oil Rate (bopd)</strong></td>
+                            <td>100</td>
+                            <td>Weight for oil rate decline trends</td>
+                        </tr>
+                        <tr>
+                            <td><strong>GLR (scf/bbl)</strong></td>
+                            <td>100</td>
+                            <td>Weight for gas-liquid ratio decline</td>
+                        </tr>
+                        <tr>
+                            <td><strong>Tubing Pressure (psi)</strong></td>
+                            <td>50</td>
+                            <td>Weight for tubing pressure decline</td>
+                        </tr>
+                        <tr>
+                            <td><strong>Economic Oil Limit</strong></td>
+                            <td>50 bopd</td>
+                            <td>Oil rate threshold for economic limit calculation</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+
             <div class="alert alert-info">
                 <h5><i class="bi bi-question-circle"></i> What are weights?</h5>
                 <p>Weights determine how much each parameter influences the ranking. Higher values mean more influence on the final candidate score.</p>
                 <ul>
                     <li><strong>0</strong> - Parameter ignored</li>
                     <li><strong>100</strong> - Normal importance (default)</li>
-                    <li><strong>200</strong> - Very important (maximum influence)</li>
+                    <li><strong>100</strong> - Maximum importance</li>
                 </ul>
                 <p class="mb-0">Use the slider for finer control in between.</p>
             </div>
-            
+
+            <div class="alert alert-secondary">
+                <i class="bi bi-lightbulb"></i> Tip: Higher weights (up to 100) give more influence to a parameter in the final candidate score. Adjust based on your field's specific conditions.
+            </div>
+
             <form method="post">
                 {% csrf_token %}
                 
@@ -68,10 +111,10 @@
                     <div class="col-md-6">
                         <div class="mb-3">
                             <label for="bsw_weight" class="form-label">
-                                <strong>BS&W (Water %)</strong>
+                                <strong>BS&W (%)</strong>
                                 <span class="badge bg-danger ms-1">Increasing = Bad</span>
                             </label>
-                            <input type="range" class="form-range" id="bsw_weight" name="bsw_weight" min="0" max="200" value="{{ form.bsw_weight.value|default:'100' }}">
+                            <input type="range" class="form-range" id="bsw_weight" name="bsw_weight" min="0" max="100" value="{{ form.bsw_weight.value|default:'100' }}">
                             <div class="d-flex justify-content-between">
                                 <small class="text-muted">Value: <span id="bsw_value">{{ form.bsw_weight.value|default:'100' }}</span></small>
                             </div>
@@ -80,10 +123,10 @@
                     <div class="col-md-6">
                         <div class="mb-3">
                             <label for="oil_rate_weight" class="form-label">
-                                <strong>Oil Rate</strong>
+                                <strong>Oil Rate (bopd)</strong>
                                 <span class="badge bg-warning text-dark ms-1">Decreasing = Bad</span>
                             </label>
-                            <input type="range" class="form-range" id="oil_rate_weight" name="oil_rate_weight" min="0" max="200" value="{{ form.oil_rate_weight.value|default:'100' }}">
+                            <input type="range" class="form-range" id="oil_rate_weight" name="oil_rate_weight" min="0" max="100" value="{{ form.oil_rate_weight.value|default:'100' }}">
                             <div class="d-flex justify-content-between">
                                 <small class="text-muted">Value: <span id="oil_value">{{ form.oil_rate_weight.value|default:'100' }}</span></small>
                             </div>
@@ -95,10 +138,10 @@
                     <div class="col-md-6">
                         <div class="mb-3">
                             <label for="glr_weight" class="form-label">
-                                <strong>GLR</strong>
+                                <strong>GLR (scf/bbl)</strong>
                                 <span class="badge bg-warning text-dark ms-1">Decreasing = Bad</span>
                             </label>
-                            <input type="range" class="form-range" id="glr_weight" name="glr_weight" min="0" max="200" value="{{ form.glr_weight.value|default:'100' }}">
+                            <input type="range" class="form-range" id="glr_weight" name="glr_weight" min="0" max="100" value="{{ form.glr_weight.value|default:'100' }}">
                             <div class="d-flex justify-content-between">
                                 <small class="text-muted">Value: <span id="glr_value">{{ form.glr_weight.value|default:'100' }}</span></small>
                             </div>
@@ -107,10 +150,10 @@
                     <div class="col-md-6">
                         <div class="mb-3">
                             <label for="tubing_pressure_weight" class="form-label">
-                                <strong>Tubing Pressure</strong>
+                                <strong>Tubing Pressure (psi)</strong>
                                 <span class="badge bg-info ms-1">Decreasing = Issue</span>
                             </label>
-                            <input type="range" class="form-range" id="tubing_pressure_weight" name="tubing_pressure_weight" min="0" max="200" value="{{ form.tubing_pressure_weight.value|default:'50' }}">
+                            <input type="range" class="form-range" id="tubing_pressure_weight" name="tubing_pressure_weight" min="0" max="100" value="{{ form.tubing_pressure_weight.value|default:'50' }}">
                             <div class="d-flex justify-content-between">
                                 <small class="text-muted">Value: <span id="tp_value">{{ form.tubing_pressure_weight.value|default:'50' }}</span></small>
                             </div>
@@ -159,7 +202,7 @@
                                 <option value="hampel" {% if form.outlier_method.value == 'hampel' %}selected{% endif %}>Hampel Filter</option>
                             </select>
                             <div class="form-text">
-                                Method for detecting and filtering erroneous data points.
+                                Method (IQR, Z-score, Hampel) and threshold for outlier removal.
                             </div>
                         </div>
                     </div>
@@ -184,7 +227,7 @@
                             </label>
                             <input type="number" class="form-control" id="gas_constraint_mmscf" name="gas_constraint_mmscf" value="{{ form.gas_constraint_mmscf.value|default:'' }}" min="0" step="0.1" placeholder="e.g., 10">
                             <div class="form-text">
-                                Available lift gas volume. If set, the knapsack optimizer will rank wells for optimal gas allocation.
+                                Available lift gas volume. If set, the system ranks wells by efficiency and allocates gas within the constraint.
                             </div>
                         </div>
                     </div>

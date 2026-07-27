@@ -427,63 +427,7 @@
                     <h5 class="mt-3">Completion Feasibility</h5>
                     <p>With completion data uploaded, the system performs a basic feasibility screening to assess whether available compression pressure is sufficient for gas lift at the deepest mandrel using simplified pressure-loss assumptions.</p>
 
-                    <div class="alert alert-warning mt-4">
-                        <h5 class="fw-bold"><i class="bi bi-exclamation-triangle"></i> Implementation Maturity at a Glance</h5>
-                        <p class="mb-3">The workflow now covers the core screening path end to end: upload, mapping, preview, weighting, trend review, analysis execution, result review, and export. Advanced capabilities such as PVT-based liquid loading checks, completion-feasibility screening, Monte Carlo sensitivity, and PDF reporting are available as supporting features for preliminary engineering review.</p>
-                        <div class="table-responsive">
-                            <table class="table table-sm table-bordered mb-0">
-                                <thead>
-                                    <tr>
-                                        <th scope="col">Capability</th>
-                                        <th scope="col">Manual promise</th>
-                                        <th scope="col">Current implementation</th>
-                                        <th scope="col">Current status</th>
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                    <tr>
-                                        <td>Scoring and ranking</td>
-                                        <td>Engineering-grade candidate prioritization</td>
-                                        <td>Weighted heuristic scoring with simple ranking logic</td>
-                                        <td>Prototype / basic</td>
-                                    </tr>
-                                    <tr>
-                                        <td>Liquid loading diagnostics</td>
-                                        <td>Field-grade liquid loading analysis</td>
-                                        <td>Basic PVT-based critical velocity checks</td>
-                                        <td>Prototype / basic</td>
-                                    </tr>
-                                    <tr>
-                                        <td>Completion feasibility</td>
-                                        <td>Detailed completion suitability assessment</td>
-                                        <td>Simplified pressure and hardware feasibility checks</td>
-                                        <td>Prototype / basic</td>
-                                    </tr>
-                                    <tr>
-                                        <td>Gas allocation optimization</td>
-                                        <td>Full gas allocation workflow</td>
-                                        <td>Greedy knapsack allocation based on simple efficiency heuristics</td>
-                                        <td>Prototype / basic</td>
-                                    </tr>
-                                    <tr>
-                                        <td>Sensitivity analysis</td>
-                                        <td>Deep robustness and uncertainty analysis</td>
-                                        <td>Monte Carlo simulation exists but is not fully integrated into the decision workflow</td>
-                                        <td>Prototype / partial</td>
-                                    </tr>
-                                    <tr>
-                                        <td>Executive reporting</td>
-                                        <td>Management-ready executive-grade reporting</td>
-                                        <td>HTML and PDF summary reports are available, but remain presentation-oriented</td>
-                                        <td>Basic / presentation-level</td>
-                                    </tr>
-                                </tbody>
-                            </table>
-                        </div>
-                        <p class="mt-3 mb-0"><strong>Bottom line:</strong> the workflow is useful for screening, demo use, and preliminary candidate review, but it should be treated as a decision-support prototype rather than a fully validated engineering-ready deployment tool.</p>
-                    </div>
-                </div>
-            </section>
+                    
 
             <!-- 11. FAQ -->
             <section id="faq" class="manual-section">

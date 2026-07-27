@@ -106,6 +106,7 @@
                         <div class="card-body">
                             <h2 class="text-info">{{ summary.new_wells }}</h2>
                             <small>New Wells</small>
+                            <div class="mt-2 small text-muted">Removed: {{ summary.removed_wells }}</div>
                         </div>
                     </div>
                 </div>
@@ -127,12 +128,12 @@
                     </thead>
                     <tbody>
                         {% for delta in deltas %}
-                        <tr class="{% if delta.improved %}table-success{% elif delta.deteriorated %}table-danger{% endif %}">
+                        <tr class="{% if delta.improved %}table-success{% elif delta.deteriorated %}table-danger{% elif delta.removed_well %}table-secondary{% endif %}">
                             <td><strong>{{ delta.well_id }}</strong></td>
-                            <td>{% if delta.rank_a %}#{{ delta.rank_a }}{% else %}<span class="text-muted">New</span>{% endif %}</td>
-                            <td>{% if delta.rank_b %}#{{ delta.rank_b }}{% else %}<span class="text-muted">Removed</span>{% endif %}</td>
+                            <td>{% if delta.rank_a is not None %}#{{ delta.rank_a }}{% else %}<span class="text-muted">New</span>{% endif %}</td>
+                            <td>{% if delta.rank_b is not None %}#{{ delta.rank_b }}{% else %}<span class="text-muted">Removed</span>{% endif %}</td>
                             <td>
-                                {% if delta.rank_change %}
+                                {% if delta.rank_change is not None %}
                                     {% if delta.improved %}
                                     <span class="badge bg-success">+{{ delta.rank_change }}</span>
                                     {% elif delta.deteriorated %}
@@ -153,8 +154,10 @@
                                 <span class="badge bg-danger">Deteriorated</span>
                                 {% elif delta.rank_change == 0 %}
                                 <span class="badge bg-secondary">Unchanged</span>
-                                {% elif not delta.rank_a %}
+                                {% elif delta.new_well %}
                                 <span class="badge bg-info">New Well</span>
+                                {% elif delta.removed_well %}
+                                <span class="badge bg-danger">Removed</span>
                                 {% else %}
                                 <span class="badge bg-warning">N/A</span>
                                 {% endif %}
